@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Painel da Doca</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: system-ui, Arial, sans-serif; margin: 0; background: #f4f5f7; color: #1a1a1a; }
+  header { background: #1f2937; color: #fff; padding: 16px 20px; }
+  header h1 { margin: 0; font-size: 20px; }
+  main { max-width: 900px; margin: 20px auto; padding: 0 16px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #eee; }
+  th { background: #eef0f3; font-size: 13px; text-transform: uppercase; color: #555; }
+  tr:last-child td { border-bottom: none; }
+  .status { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .status-aguardando { background: #fef3c7; color: #92400e; }
+  .status-chamado { background: #dbeafe; color: #1e40af; }
+  .status-na_doca { background: #d1fae5; color: #065f46; }
+  .row-actions { display: flex; gap: 6px; align-items: center; }
+  select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; }
+  button { padding: 7px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn-chamar { background: #2563eb; color: #fff; }
+  .btn-finalizar { background: #9ca3af; color: #fff; }
+  .empty { padding: 30px; text-align: center; color: #888; }
+  .refresh-note { font-size: 12px; color: #888; margin-top: 10px; }
+  .qr-box {
+    margin-top: 24px; background: #fff; border-radius: 8px; padding: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.1); display: flex; align-items: center; gap: 16px;
+  }
+  .qr-box img { width: 120px; height: 120px; display: block; }
+  .qr-box div p { margin: 0 0 6px; font-size: 13px; color: #444; }
+  .qr-box code { font-size: 12px; background: #f1f1f1; padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header><h1>Painel da Doca - Chamada de Motoristas</h1></header>
+<main>
+  <table>
+    <thead>
+      <tr><th>Motorista</th><th>Placa</th><th>Status</th><th>Doca</th><th>Acao</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">Nenhum motorista na fila.</div>
+  <p class="refresh-note">Atualiza automaticamente a cada 3s.</p>
+
+  <div class="qr-box">
+    <img src="/qrcode" alt="QR Code para o motorista entrar na fila" />
+    <div>
+      <p>O motorista escaneia este QR Code com a camera do celular para abrir a fila e entrar.</p>
+      <code id="link-motorista"></code>
+    </div>
+  </div>
+</main>
+<script>
+const STATUS_LABEL = { aguardando: "Aguardando", chamado: "Chamado", na_doca: "Na doca" };
+
+async function carregar() {
+  const res = await fetch("/api/motoristas");
+  const motoristas = await res.json();
+  const tbody = document.getElementById("tbody");
+  const empty = document.getElementById("empty");
+  tbody.innerHTML = "";
+  empty.style.display = motoristas.length ? "none" : "block";
+
+  for (const m of motoristas) {
+    const tr = document.createElement("tr");
+
+    const tdNome = document.createElement("td");
+    tdNome.textContent = m.nome;
+
+    const tdPlaca = document.createElement("td");
+    tdPlaca.textContent = m.placa;
+
+    const tdStatus = document.createElement("td");
+    const span = document.createElement("span");
+    span.className = "status status-" + m.status;
+    span.textContent = STATUS_LABEL[m.status] || m.status;
+    tdStatus.appendChild(span);
+
+    const tdDoca = document.createElement("td");
+    tdDoca.textContent = m.doca || "-";
+
+    const tdAcao = document.createElement("td");
+    const wrap = document.createElement("div");
+    wrap.className = "row-actions";
+
+    if (m.status === "aguardando") {
+      const select = document.createElement("select");
+      for (const doca of ["A", "B"]) {
+        const opt = document.createElement("option");
+        opt.value = doca;
+        opt.textContent = "Doca " + doca;
+        select.appendChild(opt);
+      }
+      const btn = document.createElement("button");
+      btn.className = "btn-chamar";
+      btn.textContent = "Chamar";
+      btn.onclick = () => chamar(m.id, select.value);
+      wrap.appendChild(select);
+      wrap.appendChild(btn);
+    } else {
+      const btn = document.createElement("button");
+      btn.className = "btn-finalizar";
+      btn.textContent = "Finalizar";
+      btn.onclick = () => finalizar(m.id);
+      wrap.appendChild(btn);
+    }
+
+    tdAcao.appendChild(wrap);
+    tr.append(tdNome, tdPlaca, tdStatus, tdDoca, tdAcao);
+    tbody.appendChild(tr);
+  }
+}
+
+async function chamar(id, doca) {
+  await fetch(`/api/motoristas/${id}/chamar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ doca }),
+  });
+  carregar();
+}
+
+async function finalizar(id) {
+  await fetch(`/api/motoristas/${id}/finalizar`, { method: "POST" });
+  carregar();
+}
+
+document.getElementById("link-motorista").textContent = window.location.origin + "/motorista";
+
+carregar();
+setInterval(carregar, 3000);
+</script>
+</body>
+</html>

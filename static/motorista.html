@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aguardando Doca</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: system-ui, Arial, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; background: #f4f5f7; color: #1a1a1a;
+    transition: background .3s ease;
+  }
+  .card {
+    width: 100%; max-width: 380px; margin: 16px; padding: 28px;
+    background: #fff; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    text-align: center;
+  }
+  h1 { font-size: 18px; margin: 0 0 18px; }
+  input[type=text] {
+    width: 100%; box-sizing: border-box; padding: 12px; margin-bottom: 12px;
+    border: 1px solid #ccc; border-radius: 8px; font-size: 15px;
+  }
+  button {
+    width: 100%; padding: 13px; border: none; border-radius: 8px;
+    background: #2563eb; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .espera { font-size: 15px; color: #555; }
+  .pulso { width: 60px; height: 60px; margin: 16px auto; border-radius: 50%; background: #fbbf24; animation: pulso 1.5s infinite; }
+  @keyframes pulso { 0%{ transform: scale(1); opacity: .7 } 50%{ transform: scale(1.15); opacity: 1 } 100%{ transform: scale(1); opacity: .7 } }
+  .chamado { background: #dcfce7; }
+  .chamado .card { background: #16a34a; color: #fff; }
+  .doca-numero { font-size: 48px; font-weight: 800; margin: 10px 0; }
+  .btn-cheguei { background: #fff; color: #16a34a; margin-top: 16px; }
+  .btn-cheguei:disabled { opacity: .6; cursor: default; }
+  .confirmado { color: #fff; margin-top: 14px; font-size: 14px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body id="body">
+<div class="card" id="card">
+
+  <div id="form-entrada">
+    <h1>Entrar na fila da doca</h1>
+    <input type="text" id="nome" placeholder="Seu nome" />
+    <input type="text" id="placa" placeholder="Placa do veiculo" />
+    <button onclick="entrarNaFila()">Entrar na fila</button>
+  </div>
+
+  <div id="tela-espera" class="hidden">
+    <h1>Aguardando chamada...</h1>
+    <div class="pulso"></div>
+    <p class="espera">Deixe esta tela aberta. Voce sera avisado com som e vibracao quando for a sua vez.</p>
+  </div>
+
+  <div id="tela-chamado" class="hidden">
+    <h1>VA PARA A DOCA</h1>
+    <div class="doca-numero" id="doca-numero">-</div>
+    <button class="btn-cheguei" id="btn-cheguei" onclick="cheguei()">Cheguei na doca</button>
+    <p class="confirmado hidden" id="confirmado-texto">Chegada registrada! Aguarde o operador.</p>
+  </div>
+
+</div>
+
+<script>
+let motoristaId = localStorage.getItem("motoristaId");
+let polling = null;
+let jaTocou = false;
+
+function mostrarTela(id) {
+  document.querySelectorAll("#form-entrada, #tela-espera, #tela-chamado").forEach(el => el.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+}
+
+async function entrarNaFila() {
+  const nome = document.getElementById("nome").value.trim();
+  const placa = document.getElementById("placa").value.trim();
+  if (!nome || !placa) { alert("Preencha nome e placa"); return; }
+  const res = await fetch("/api/motoristas", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nome, placa }),
+  });
+  const data = await res.json();
+  motoristaId = data.id;
+  localStorage.setItem("motoristaId", motoristaId);
+  iniciarEspera();
+}
+
+function iniciarEspera() {
+  mostrarTela("tela-espera");
+  verificarStatus();
+  polling = setInterval(verificarStatus, 2000);
+}
+
+async function verificarStatus() {
+  if (!motoristaId) return;
+  const res = await fetch(`/api/motoristas/${motoristaId}`);
+  if (!res.ok) {
+    localStorage.removeItem("motoristaId");
+    motoristaId = null;
+    clearInterval(polling);
+    mostrarTela("form-entrada");
+    return;
+  }
+  const m = await res.json();
+  if (m.status === "chamado" || m.status === "na_doca") {
+    document.getElementById("doca-numero").textContent = m.doca || "-";
+    document.getElementById("body").classList.add("chamado");
+    mostrarTela("tela-chamado");
+    const btn = document.getElementById("btn-cheguei");
+    const texto = document.getElementById("confirmado-texto");
+    if (m.status === "na_doca") {
+      btn.classList.add("hidden");
+      texto.classList.remove("hidden");
+    } else {
+      btn.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = "Cheguei na doca";
+      texto.classList.add("hidden");
+    }
+    if (!jaTocou) { jaTocou = true; tocarBip(); vibrar(); }
+  } else if (m.status === "finalizado") {
+    clearInterval(polling);
+    localStorage.removeItem("motoristaId");
+    motoristaId = null;
+    jaTocou = false;
+    document.getElementById("body").classList.remove("chamado");
+    mostrarTela("form-entrada");
+  }
+}
+
+async function cheguei() {
+  if (!motoristaId) return;
+  const btn = document.getElementById("btn-cheguei");
+  btn.disabled = true;
+  btn.textContent = "Confirmando...";
+  try {
+    await fetch(`/api/motoristas/${motoristaId}/cheguei`, { method: "POST" });
+    btn.classList.add("hidden");
+    document.getElementById("confirmado-texto").classList.remove("hidden");
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "Cheguei na doca";
+    alert("Nao foi possivel confirmar, tente novamente.");
+  }
+}
+
+function vibrar() {
+  if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]);
+}
+
+function tocarBip() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const tocarTom = (tempoInicio) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.3, tempoInicio);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(tempoInicio);
+      osc.stop(tempoInicio + 0.35);
+    };
+    const agora = ctx.currentTime;
+    tocarTom(agora);
+    tocarTom(agora + 0.5);
+    tocarTom(agora + 1.0);
+  } catch (e) {
+    console.error("Nao foi possivel tocar o bip", e);
+  }
+}
+
+if (motoristaId) {
+  iniciarEspera();
+} else {
+  mostrarTela("form-entrada");
+}
+</script>
+</body>
+</html>

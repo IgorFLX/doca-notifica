@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+doca.db
+server_out.log
+server_err.log
+qrcode_motorista.png

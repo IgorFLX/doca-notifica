@@ -24,9 +24,17 @@
   }
   header .logo { background: #fff; border-radius: 8px; padding: 6px 12px; display: flex; align-items: center; }
   header .logo img { height: 22px; display: block; }
-  header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+  header h1 { margin: 0; font-size: 19px; font-weight: 600; flex: 1; }
+  .btn-sair {
+    background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.3);
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .btn-sair:hover { background: rgba(255,255,255,.2); }
   main { max-width: 960px; margin: 28px auto; padding: 0 20px; }
-  .panel-title { font-size: 14px; font-weight: 600; color: #46516b; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px 4px; }
+  .panel-title { font-size: 14px; font-weight: 600; color: #46516b; text-transform: uppercase; letter-spacing: .04em; margin: 24px 0 10px 4px; }
+  .panel-title:first-of-type { margin-top: 0; }
+  .espera { font-variant-numeric: tabular-nums; color: #33405e; font-weight: 600; }
+  tr.linha-historico td { color: #6b7488; }
   table {
     width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px;
     overflow: hidden; box-shadow: 0 2px 10px rgba(16,24,60,.08);
@@ -69,12 +77,13 @@
 <header>
   <span class="logo"><img src="/static/logo-dsv.webp" alt="DSV" /></span>
   <h1>Painel da Doca &mdash; Chamada de Motoristas</h1>
+  <button class="btn-sair" onclick="sair()">Sair</button>
 </header>
 <main>
   <p class="panel-title">Fila de motoristas</p>
   <table>
     <thead>
-      <tr><th>Motorista</th><th>ID da carga</th><th>Status</th><th>Doca</th><th>Acao</th></tr>
+      <tr><th>Motorista</th><th>ID da carga</th><th>Status</th><th>Doca</th><th>Espera</th><th>Acao</th></tr>
     </thead>
     <tbody id="tbody"></tbody>
   </table>
@@ -88,12 +97,46 @@
       <code id="link-motorista"></code>
     </div>
   </div>
+
+  <p class="panel-title">Historico</p>
+  <table>
+    <thead>
+      <tr><th>Motorista</th><th>ID da carga</th><th>Doca</th><th>Espera</th><th>Finalizado</th></tr>
+    </thead>
+    <tbody id="tbody-historico"></tbody>
+  </table>
+  <div class="empty" id="empty-historico" style="display:none">Nenhum registro no historico ainda.</div>
 </main>
 <script>
 const STATUS_LABEL = { aguardando: "Aguardando", chamado: "Chamado", na_doca: "Na doca" };
 
+async function apiFetch(url, options) {
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    window.location.href = "/login";
+    throw new Error("Nao autenticado");
+  }
+  return res;
+}
+
+function formatarDuracao(ms) {
+  const totalSeg = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSeg / 3600);
+  const m = Math.floor((totalSeg % 3600) / 60);
+  const s = totalSeg % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
+  return `${s}s`;
+}
+
+function esperaDe(m) {
+  const inicio = new Date(m.criado_em).getTime();
+  const fim = m.chamado_em ? new Date(m.chamado_em).getTime() : Date.now();
+  return formatarDuracao(fim - inicio);
+}
+
 async function carregar() {
-  const res = await fetch("/api/motoristas");
+  const res = await apiFetch("/api/motoristas");
   const motoristas = await res.json();
   const tbody = document.getElementById("tbody");
   const empty = document.getElementById("empty");
@@ -117,6 +160,10 @@ async function carregar() {
 
     const tdDoca = document.createElement("td");
     tdDoca.textContent = m.doca || "-";
+
+    const tdEspera = document.createElement("td");
+    tdEspera.className = "espera";
+    tdEspera.textContent = esperaDe(m);
 
     const tdAcao = document.createElement("td");
     const wrap = document.createElement("div");
@@ -145,13 +192,46 @@ async function carregar() {
     }
 
     tdAcao.appendChild(wrap);
-    tr.append(tdNome, tdCarga, tdStatus, tdDoca, tdAcao);
+    tr.append(tdNome, tdCarga, tdStatus, tdDoca, tdEspera, tdAcao);
+    tbody.appendChild(tr);
+  }
+}
+
+async function carregarHistorico() {
+  const res = await apiFetch("/api/motoristas/historico");
+  const motoristas = await res.json();
+  const tbody = document.getElementById("tbody-historico");
+  const empty = document.getElementById("empty-historico");
+  tbody.innerHTML = "";
+  empty.style.display = motoristas.length ? "none" : "block";
+
+  for (const m of motoristas) {
+    const tr = document.createElement("tr");
+    tr.className = "linha-historico";
+
+    const tdNome = document.createElement("td");
+    tdNome.textContent = m.nome;
+
+    const tdCarga = document.createElement("td");
+    tdCarga.textContent = m.carga;
+
+    const tdDoca = document.createElement("td");
+    tdDoca.textContent = m.doca || "-";
+
+    const tdEspera = document.createElement("td");
+    tdEspera.className = "espera";
+    tdEspera.textContent = esperaDe(m);
+
+    const tdFinalizado = document.createElement("td");
+    tdFinalizado.textContent = m.finalizado_em ? new Date(m.finalizado_em).toLocaleString("pt-BR") : "-";
+
+    tr.append(tdNome, tdCarga, tdDoca, tdEspera, tdFinalizado);
     tbody.appendChild(tr);
   }
 }
 
 async function chamar(id, doca) {
-  await fetch(`/api/motoristas/${id}/chamar`, {
+  await apiFetch(`/api/motoristas/${id}/chamar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ doca }),
@@ -160,14 +240,22 @@ async function chamar(id, doca) {
 }
 
 async function finalizar(id) {
-  await fetch(`/api/motoristas/${id}/finalizar`, { method: "POST" });
+  await apiFetch(`/api/motoristas/${id}/finalizar`, { method: "POST" });
   carregar();
+  carregarHistorico();
+}
+
+async function sair() {
+  await fetch("/api/logout", { method: "POST" });
+  window.location.href = "/login";
 }
 
 document.getElementById("link-motorista").textContent = window.location.origin + "/motorista";
 
 carregar();
+carregarHistorico();
 setInterval(carregar, 3000);
+setInterval(carregarHistorico, 15000);
 </script>
 </body>
 </html>

@@ -17,9 +17,12 @@ Banco: Postgres (variavel de ambiente DATABASE_URL). Notificacoes push
 usam VAPID (variaveis VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_CLAIM_EMAIL).
 """
 
+import hashlib
+import hmac
 import io
 import json
 import os
+import secrets
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,10 +31,11 @@ import psycopg
 import qrcode
 from psycopg.rows import dict_row
 from pywebpush import WebPushException, webpush
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.middleware.sessions import SessionMiddleware
 
 DOCAS_VALIDAS = {"A", "B"}
 
@@ -43,7 +47,34 @@ VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
 VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "mailto:admin@example.com")
 
+SECRET_KEY = os.environ["SECRET_KEY"]
+CODIGO_CADASTRO = os.environ["CODIGO_CADASTRO"]
+
 app = FastAPI(title="Chamada de Doca")
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax")
+
+
+def logado(request: Request) -> bool:
+    return bool(request.session.get("auth"))
+
+
+def exigir_login_api(request: Request):
+    if not logado(request):
+        raise HTTPException(401, "Nao autenticado")
+
+
+def gerar_hash_senha(senha: str) -> str:
+    salt = secrets.token_hex(16)
+    hash_ = hashlib.pbkdf2_hmac("sha256", senha.encode(), bytes.fromhex(salt), 200_000)
+    return f"{salt}${hash_.hex()}"
+
+
+def verificar_senha(senha: str, hash_salvo: str) -> bool:
+    salt, _, hash_esperado = hash_salvo.partition("$")
+    if not salt or not hash_esperado:
+        return False
+    hash_calculado = hashlib.pbkdf2_hmac("sha256", senha.encode(), bytes.fromhex(salt), 200_000).hex()
+    return hmac.compare_digest(hash_calculado, hash_esperado)
 
 
 @contextmanager
@@ -67,7 +98,8 @@ def init_db():
                 status TEXT NOT NULL DEFAULT 'aguardando',
                 doca TEXT,
                 criado_em TIMESTAMPTZ NOT NULL,
-                chamado_em TIMESTAMPTZ
+                chamado_em TIMESTAMPTZ,
+                finalizado_em TIMESTAMPTZ
             )
             """
         )
@@ -79,6 +111,16 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                usuario TEXT UNIQUE NOT NULL,
+                senha_hash TEXT NOT NULL,
+                criado_em TIMESTAMPTZ NOT NULL
+            )
+            """
+        )
         colunas = {
             row["column_name"]
             for row in conn.execute(
@@ -87,6 +129,8 @@ def init_db():
         }
         if "placa" in colunas and "carga" not in colunas:
             conn.execute("ALTER TABLE motoristas RENAME COLUMN placa TO carga")
+        if "finalizado_em" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN finalizado_em TIMESTAMPTZ")
 
 
 init_db()
@@ -103,6 +147,17 @@ class ChamarPayload(BaseModel):
 
 class SubscriptionPayload(BaseModel):
     subscription: dict
+
+
+class LoginPayload(BaseModel):
+    usuario: str
+    senha: str
+
+
+class RegistroPayload(BaseModel):
+    usuario: str
+    senha: str
+    codigo: str
 
 
 def enviar_push(motorista_id: int, titulo: str, corpo: str):
@@ -129,6 +184,51 @@ def enviar_push(motorista_id: int, titulo: str, corpo: str):
 @app.get("/api/vapid-public-key")
 def vapid_public_key():
     return {"publicKey": VAPID_PUBLIC_KEY}
+
+
+@app.post("/api/login")
+def login(payload: LoginPayload, request: Request):
+    usuario = payload.usuario.strip().lower()
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT senha_hash FROM usuarios WHERE usuario = %s", (usuario,)
+        ).fetchone()
+    if not row or not verificar_senha(payload.senha, row["senha_hash"]):
+        raise HTTPException(401, "Usuario ou senha invalidos")
+    request.session["auth"] = True
+    request.session["usuario"] = usuario
+    return {"ok": True}
+
+
+@app.post("/api/logout")
+def logout(request: Request):
+    request.session.clear()
+    return {"ok": True}
+
+
+@app.post("/api/registrar")
+def registrar(payload: RegistroPayload, request: Request):
+    usuario = payload.usuario.strip().lower()
+    senha = payload.senha
+    if not hmac.compare_digest(payload.codigo.encode(), CODIGO_CADASTRO.encode()):
+        raise HTTPException(401, "Codigo de cadastro invalido")
+    if len(usuario) < 3:
+        raise HTTPException(400, "Usuario deve ter pelo menos 3 caracteres")
+    if len(senha) < 6:
+        raise HTTPException(400, "Senha deve ter pelo menos 6 caracteres")
+    with get_db() as conn:
+        existe = conn.execute(
+            "SELECT id FROM usuarios WHERE usuario = %s", (usuario,)
+        ).fetchone()
+        if existe:
+            raise HTTPException(409, "Esse usuario ja existe")
+        conn.execute(
+            "INSERT INTO usuarios (usuario, senha_hash, criado_em) VALUES (%s, %s, %s)",
+            (usuario, gerar_hash_senha(senha), datetime.now(timezone.utc)),
+        )
+    request.session["auth"] = True
+    request.session["usuario"] = usuario
+    return {"ok": True}
 
 
 @app.post("/api/motoristas")
@@ -165,10 +265,19 @@ def salvar_subscription(motorista_id: int, payload: SubscriptionPayload):
 
 
 @app.get("/api/motoristas")
-def listar_motoristas():
+def listar_motoristas(_: None = Depends(exigir_login_api)):
     with get_db() as conn:
         rows = conn.execute(
             "SELECT * FROM motoristas WHERE status != 'finalizado' ORDER BY criado_em ASC"
+        ).fetchall()
+        return rows
+
+
+@app.get("/api/motoristas/historico")
+def historico_motoristas(_: None = Depends(exigir_login_api)):
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM motoristas WHERE status = 'finalizado' ORDER BY criado_em DESC LIMIT 200"
         ).fetchall()
         return rows
 
@@ -185,7 +294,7 @@ def status_motorista(motorista_id: int):
 
 
 @app.post("/api/motoristas/{motorista_id}/chamar")
-def chamar_motorista(motorista_id: int, payload: ChamarPayload):
+def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depends(exigir_login_api)):
     doca = payload.doca.strip().upper()
     if doca not in DOCAS_VALIDAS:
         raise HTTPException(400, "Doca deve ser A ou B")
@@ -212,10 +321,11 @@ def motorista_chegou(motorista_id: int):
 
 
 @app.post("/api/motoristas/{motorista_id}/finalizar")
-def finalizar_motorista(motorista_id: int):
+def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET status = 'finalizado' WHERE id = %s", (motorista_id,)
+            "UPDATE motoristas SET status = 'finalizado', finalizado_em = %s WHERE id = %s",
+            (datetime.now(timezone.utc), motorista_id),
         )
         if cur.rowcount == 0:
             raise HTTPException(404, "Motorista nao encontrado")
@@ -223,8 +333,24 @@ def finalizar_motorista(motorista_id: int):
 
 
 @app.get("/")
-def painel():
+def painel(request: Request):
+    if not logado(request):
+        return RedirectResponse("/login")
     return FileResponse(BASE_DIR / "static" / "painel.html")
+
+
+@app.get("/login")
+def login_page(request: Request):
+    if logado(request):
+        return RedirectResponse("/")
+    return FileResponse(BASE_DIR / "static" / "login.html")
+
+
+@app.get("/registrar")
+def registrar_page(request: Request):
+    if logado(request):
+        return RedirectResponse("/")
+    return FileResponse(BASE_DIR / "static" / "registrar.html")
 
 
 @app.get("/motorista")
@@ -238,7 +364,7 @@ def service_worker():
 
 
 @app.get("/qrcode")
-def qrcode_motorista(request: Request):
+def qrcode_motorista(request: Request, _: None = Depends(exigir_login_api)):
     scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
     url = f"{scheme}://{request.url.netloc}/motorista"
     img = qrcode.make(url)

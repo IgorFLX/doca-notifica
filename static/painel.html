@@ -25,11 +25,12 @@
   header .logo { background: #fff; border-radius: 8px; padding: 6px 12px; display: flex; align-items: center; }
   header .logo img { height: 22px; display: block; }
   header h1 { margin: 0; font-size: 19px; font-weight: 600; flex: 1; }
-  .btn-sair {
+  .btn-sair, .nav-link {
     background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.3);
     padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    text-decoration: none;
   }
-  .btn-sair:hover { background: rgba(255,255,255,.2); }
+  .btn-sair:hover, .nav-link:hover { background: rgba(255,255,255,.2); }
   main { max-width: 960px; margin: 28px auto; padding: 0 20px; }
   .panel-title { font-size: 14px; font-weight: 600; color: #46516b; text-transform: uppercase; letter-spacing: .04em; margin: 24px 0 10px 4px; }
   .panel-title:first-of-type { margin-top: 0; }
@@ -77,6 +78,7 @@
 <header>
   <span class="logo"><img src="/static/logo-dsv.webp" alt="DSV" /></span>
   <h1>Painel da Doca &mdash; Chamada de Motoristas</h1>
+  <a class="nav-link" href="/dashboard">Dashboard</a>
   <button class="btn-sair" onclick="sair()">Sair</button>
 </header>
 <main>

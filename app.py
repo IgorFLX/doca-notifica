@@ -282,6 +282,58 @@ def historico_motoristas(_: None = Depends(exigir_login_api)):
         return rows
 
 
+@app.get("/api/dashboard")
+def dashboard_dados(_: None = Depends(exigir_login_api)):
+    with get_db() as conn:
+        fila_atual = conn.execute(
+            "SELECT COUNT(*) AS n FROM motoristas WHERE status != 'finalizado'"
+        ).fetchone()["n"]
+
+        atendidos_hoje = conn.execute(
+            """
+            SELECT COUNT(*) AS n FROM motoristas
+            WHERE status = 'finalizado' AND finalizado_em >= date_trunc('day', now())
+            """
+        ).fetchone()["n"]
+
+        espera_media_hoje = conn.execute(
+            """
+            SELECT AVG(EXTRACT(EPOCH FROM (chamado_em - criado_em))) AS media
+            FROM motoristas
+            WHERE chamado_em IS NOT NULL AND chamado_em >= date_trunc('day', now())
+            """
+        ).fetchone()["media"]
+
+        total_historico = conn.execute(
+            "SELECT COUNT(*) AS n FROM motoristas WHERE status = 'finalizado'"
+        ).fetchone()["n"]
+
+        por_doca = conn.execute(
+            """
+            SELECT doca, COUNT(*) AS n FROM motoristas
+            WHERE doca IS NOT NULL GROUP BY doca ORDER BY doca
+            """
+        ).fetchall()
+
+        ultimos_dias = conn.execute(
+            """
+            SELECT to_char(date_trunc('day', criado_em), 'YYYY-MM-DD') AS dia, COUNT(*) AS n
+            FROM motoristas
+            WHERE criado_em >= now() - interval '7 days'
+            GROUP BY dia ORDER BY dia
+            """
+        ).fetchall()
+
+    return {
+        "fila_atual": fila_atual,
+        "atendidos_hoje": atendidos_hoje,
+        "espera_media_hoje_seg": round(espera_media_hoje) if espera_media_hoje else None,
+        "total_historico": total_historico,
+        "por_doca": por_doca,
+        "ultimos_dias": ultimos_dias,
+    }
+
+
 @app.get("/api/motoristas/{motorista_id}")
 def status_motorista(motorista_id: int):
     with get_db() as conn:
@@ -337,6 +389,13 @@ def painel(request: Request):
     if not logado(request):
         return RedirectResponse("/login")
     return FileResponse(BASE_DIR / "static" / "painel.html")
+
+
+@app.get("/dashboard")
+def dashboard_page(request: Request):
+    if not logado(request):
+        return RedirectResponse("/login")
+    return FileResponse(BASE_DIR / "static" / "dashboard.html")
 
 
 @app.get("/login")

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard - Painel da Doca</title>
+<style>
+  :root {
+    color-scheme: light;
+    --navy-dark: #0a1638;
+    --navy: #16255c;
+    --navy-light: #1d3a8f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, Arial, sans-serif; margin: 0;
+    background: #eef1f7; color: #1a1a1a;
+  }
+  header {
+    background: linear-gradient(120deg, var(--navy-dark), var(--navy) 60%, var(--navy-light));
+    color: #fff; padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.15);
+  }
+  header .logo { background: #fff; border-radius: 8px; padding: 6px 12px; display: flex; align-items: center; }
+  header .logo img { height: 22px; display: block; }
+  header h1 { margin: 0; font-size: 19px; font-weight: 600; flex: 1; }
+  header a.nav-link, header button.nav-link {
+    background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.3);
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    text-decoration: none;
+  }
+  header a.nav-link:hover, header button.nav-link:hover { background: rgba(255,255,255,.2); }
+  main { max-width: 1000px; margin: 28px auto; padding: 0 20px; }
+  .cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px;
+    margin-bottom: 28px;
+  }
+  .card {
+    background: #fff; border-radius: 14px; padding: 20px;
+    box-shadow: 0 2px 10px rgba(16,24,60,.08);
+  }
+  .card .valor { font-size: 32px; font-weight: 800; color: var(--navy-dark); }
+  .card .label { font-size: 13px; color: #6b7488; margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  .panel-title { font-size: 14px; font-weight: 600; color: #46516b; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px 4px; }
+  .box {
+    background: #fff; border-radius: 14px; padding: 22px;
+    box-shadow: 0 2px 10px rgba(16,24,60,.08); margin-bottom: 24px;
+  }
+  .barras { display: flex; align-items: flex-end; gap: 14px; height: 180px; padding-top: 10px; }
+  .barra-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .barra {
+    width: 100%; max-width: 46px; border-radius: 6px 6px 0 0;
+    background: linear-gradient(180deg, var(--navy-light), var(--navy-dark));
+    transition: height .4s ease;
+  }
+  .barra-num { font-size: 12px; font-weight: 700; color: var(--navy-dark); margin-bottom: 4px; }
+  .barra-label { font-size: 11px; color: #8891a8; margin-top: 8px; text-align: center; }
+  .docas { display: flex; gap: 20px; }
+  .doca-item { flex: 1; }
+  .doca-item .nome { font-size: 13px; font-weight: 700; color: #46516b; margin-bottom: 6px; }
+  .doca-barra-fundo { background: #eef0f5; border-radius: 999px; height: 14px; overflow: hidden; }
+  .doca-barra-preenchida { height: 100%; background: linear-gradient(90deg, var(--navy-light), var(--navy-dark)); border-radius: 999px; }
+  .doca-item .qtd { font-size: 12px; color: #6b7488; margin-top: 6px; }
+  .vazio { color: #8891a8; font-size: 13px; text-align: center; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo"><img src="/static/logo-dsv.webp" alt="DSV" /></span>
+  <h1>Dashboard</h1>
+  <a class="nav-link" href="/">Fila e historico</a>
+  <button class="nav-link" onclick="sair()">Sair</button>
+</header>
+<main>
+  <div class="cards">
+    <div class="card">
+      <div class="valor" id="v-fila">-</div>
+      <div class="label">Na fila agora</div>
+    </div>
+    <div class="card">
+      <div class="valor" id="v-atendidos">-</div>
+      <div class="label">Atendidos hoje</div>
+    </div>
+    <div class="card">
+      <div class="valor" id="v-espera">-</div>
+      <div class="label">Espera media hoje</div>
+    </div>
+    <div class="card">
+      <div class="valor" id="v-total">-</div>
+      <div class="label">Total no historico</div>
+    </div>
+  </div>
+
+  <p class="panel-title">Entradas nos ultimos 7 dias</p>
+  <div class="box">
+    <div class="barras" id="grafico-dias"></div>
+  </div>
+
+  <p class="panel-title">Uso por doca</p>
+  <div class="box">
+    <div class="docas" id="grafico-docas"></div>
+  </div>
+</main>
+<script>
+function formatarDuracao(seg) {
+  if (seg == null) return "-";
+  const h = Math.floor(seg / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  const s = Math.floor(seg % 60);
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
+  return `${s}s`;
+}
+
+function formatarDiaLabel(diaStr) {
+  const [, mes, dia] = diaStr.split("-");
+  return `${dia}/${mes}`;
+}
+
+async function carregar() {
+  const res = await fetch("/api/dashboard");
+  if (res.status === 401) { window.location.href = "/login"; return; }
+  const d = await res.json();
+
+  document.getElementById("v-fila").textContent = d.fila_atual;
+  document.getElementById("v-atendidos").textContent = d.atendidos_hoje;
+  document.getElementById("v-espera").textContent = formatarDuracao(d.espera_media_hoje_seg);
+  document.getElementById("v-total").textContent = d.total_historico;
+
+  const grafico = document.getElementById("grafico-dias");
+  grafico.innerHTML = "";
+  if (d.ultimos_dias.length === 0) {
+    grafico.innerHTML = '<p class="vazio">Sem dados nos ultimos 7 dias.</p>';
+  } else {
+    const max = Math.max(...d.ultimos_dias.map((x) => x.n), 1);
+    for (const item of d.ultimos_dias) {
+      const col = document.createElement("div");
+      col.className = "barra-col";
+      const num = document.createElement("div");
+      num.className = "barra-num";
+      num.textContent = item.n;
+      const barra = document.createElement("div");
+      barra.className = "barra";
+      barra.style.height = Math.max(6, (item.n / max) * 150) + "px";
+      const label = document.createElement("div");
+      label.className = "barra-label";
+      label.textContent = formatarDiaLabel(item.dia);
+      col.append(num, barra, label);
+      grafico.appendChild(col);
+    }
+  }
+
+  const docasEl = document.getElementById("grafico-docas");
+  docasEl.innerHTML = "";
+  if (d.por_doca.length === 0) {
+    docasEl.innerHTML = '<p class="vazio">Nenhuma doca utilizada ainda.</p>';
+  } else {
+    const maxDoca = Math.max(...d.por_doca.map((x) => x.n), 1);
+    for (const item of d.por_doca) {
+      const col = document.createElement("div");
+      col.className = "doca-item";
+      const nome = document.createElement("div");
+      nome.className = "nome";
+      nome.textContent = "Doca " + item.doca;
+      const fundo = document.createElement("div");
+      fundo.className = "doca-barra-fundo";
+      const preenchida = document.createElement("div");
+      preenchida.className = "doca-barra-preenchida";
+      preenchida.style.width = (item.n / maxDoca) * 100 + "%";
+      fundo.appendChild(preenchida);
+      const qtd = document.createElement("div");
+      qtd.className = "qtd";
+      qtd.textContent = item.n + " motorista(s)";
+      col.append(nome, fundo, qtd);
+      docasEl.appendChild(col);
+    }
+  }
+}
+
+async function sair() {
+  await fetch("/api/logout", { method: "POST" });
+  window.location.href = "/login";
+}
+
+carregar();
+setInterval(carregar, 15000);
+</script>
+</body>
+</html>

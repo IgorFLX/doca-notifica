@@ -250,11 +250,7 @@ async function verificarStatus() {
     if (!jaTocou) { jaTocou = true; tocarBip(); vibrar(); }
   } else if (m.status === "finalizado") {
     clearInterval(polling);
-    localStorage.removeItem("motoristaId");
-    motoristaId = null;
-    jaTocou = false;
-    document.getElementById("body").classList.remove("chamado");
-    mostrarTela("form-entrada");
+    resetarParaNovaEntrada();
   }
 }
 
@@ -267,11 +263,23 @@ async function cheguei() {
     await fetch(`/api/motoristas/${motoristaId}/cheguei`, { method: "POST" });
     btn.classList.add("hidden");
     document.getElementById("confirmado-texto").classList.remove("hidden");
+    clearInterval(polling);
+    setTimeout(resetarParaNovaEntrada, 2500);
   } catch (e) {
     btn.disabled = false;
     btn.textContent = "Cheguei na doca";
     alert("Nao foi possivel confirmar, tente novamente.");
   }
+}
+
+function resetarParaNovaEntrada() {
+  localStorage.removeItem("motoristaId");
+  motoristaId = null;
+  jaTocou = false;
+  document.getElementById("body").classList.remove("chamado");
+  document.getElementById("nome").value = "";
+  document.getElementById("carga").value = "";
+  mostrarTela("form-entrada");
 }
 
 function vibrar() {

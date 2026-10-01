@@ -100,15 +100,17 @@
   .aviso-ios {
     position: relative; z-index: 1; width: 100%; box-sizing: border-box;
     background: #fff7e6; border: 1.5px solid #f5c76a; color: #7a5200;
-    border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
+    border-radius: 12px; padding: 14px 40px 14px 16px; margin-bottom: 16px;
     font-size: 13px; line-height: 1.5; text-align: left;
   }
   .aviso-ios strong { display: block; margin-bottom: 4px; font-size: 13px; }
   .aviso-ios .fechar-aviso {
-    width: auto; display: inline-block; background: none; color: #7a5200;
-    font-weight: 700; padding: 0; margin-top: 8px; text-decoration: underline;
-    font-size: 12px; cursor: pointer; border: none;
+    position: absolute; top: 8px; right: 8px; width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(122,82,0,.1); color: #7a5200; border: none; border-radius: 50%;
+    font-size: 18px; line-height: 1; font-weight: 700; cursor: pointer; padding: 0;
   }
+  .aviso-ios .fechar-aviso:hover { background: rgba(122,82,0,.18); }
 </style>
 </head>
 <body id="body">
@@ -121,10 +123,10 @@
 <div class="wrap">
   <div class="logo-box"><span><img src="/static/logo-dsv.webp" alt="DSV" /></span></div>
   <div class="aviso-ios hidden" id="aviso-ios">
+    <button class="fechar-aviso" onclick="fecharAvisoIos()" aria-label="Fechar aviso">&times;</button>
     <strong>Para receber o aviso sem precisar ficar com a tela aberta:</strong>
-    Toque no botao de compartilhar do Safari (o quadrado com a seta para cima) e escolha
-    <strong>"Adicionar a Tela de Inicio"</strong>. Depois, abra o app por esse icone.
-    <button class="fechar-aviso" onclick="fecharAvisoIos()">Entendi, fechar</button>
+    Toque no botao de compartilhar do Safari (o quadrado com a seta para cima), escolha
+    <strong>"Adicionar a Tela de Inicio"</strong> e abra o app por esse icone.
   </div>
   <div class="card" id="card">
 

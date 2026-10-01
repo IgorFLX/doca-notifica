@@ -97,6 +97,18 @@
   .btn-cheguei:disabled { opacity: .6; cursor: default; }
   .confirmado { color: #fff; margin-top: 14px; font-size: 14px; }
   .hidden { display: none; }
+  .aviso-ios {
+    position: relative; z-index: 1; width: 100%; box-sizing: border-box;
+    background: #fff7e6; border: 1.5px solid #f5c76a; color: #7a5200;
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
+    font-size: 13px; line-height: 1.5; text-align: left;
+  }
+  .aviso-ios strong { display: block; margin-bottom: 4px; font-size: 13px; }
+  .aviso-ios .fechar-aviso {
+    width: auto; display: inline-block; background: none; color: #7a5200;
+    font-weight: 700; padding: 0; margin-top: 8px; text-decoration: underline;
+    font-size: 12px; cursor: pointer; border: none;
+  }
 </style>
 </head>
 <body id="body">
@@ -108,6 +120,12 @@
 </div>
 <div class="wrap">
   <div class="logo-box"><span><img src="/static/logo-dsv.webp" alt="DSV" /></span></div>
+  <div class="aviso-ios hidden" id="aviso-ios">
+    <strong>Para receber o aviso sem precisar ficar com a tela aberta:</strong>
+    Toque no botao de compartilhar do Safari (o quadrado com a seta para cima) e escolha
+    <strong>"Adicionar a Tela de Inicio"</strong>. Depois, abra o app por esse icone.
+    <button class="fechar-aviso" onclick="fecharAvisoIos()">Entendi, fechar</button>
+  </div>
   <div class="card" id="card">
 
   <div id="form-entrada">
@@ -120,7 +138,7 @@
   <div id="tela-espera" class="hidden">
     <h1>Aguardando chamada...</h1>
     <div class="pulso"></div>
-    <p class="espera">Deixe esta tela aberta. Voce sera avisado com som e vibracao quando for a sua vez.</p>
+    <p class="espera">Se voce permitiu notificacoes, pode fechar o app e sera avisado quando for a sua vez. Caso contrario, deixe esta tela aberta.</p>
   </div>
 
   <div id="tela-chamado" class="hidden">
@@ -279,6 +297,22 @@ function tocarBip() {
   } catch (e) {
     console.error("Nao foi possivel tocar o bip", e);
   }
+}
+
+function ehIosFromHomeScreenPendente() {
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const emStandalone = window.navigator.standalone === true
+    || window.matchMedia("(display-mode: standalone)").matches;
+  return ios && !emStandalone;
+}
+
+function fecharAvisoIos() {
+  document.getElementById("aviso-ios").classList.add("hidden");
+  localStorage.setItem("avisoIosFechado", "1");
+}
+
+if (ehIosFromHomeScreenPendente() && !localStorage.getItem("avisoIosFechado")) {
+  document.getElementById("aviso-ios").classList.remove("hidden");
 }
 
 if (motoristaId) {

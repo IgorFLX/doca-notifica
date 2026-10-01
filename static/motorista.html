@@ -5,47 +5,71 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Aguardando Doca</title>
 <style>
-  :root { color-scheme: light; }
+  :root {
+    color-scheme: light;
+    --navy-dark: #0a1638;
+    --navy: #16255c;
+    --navy-light: #1d3a8f;
+  }
   html, body { height: 100%; margin: 0; }
   body {
     font-family: system-ui, Arial, sans-serif;
     display: flex; align-items: center; justify-content: center;
-    min-height: 100vh; background: #f4f5f7; color: #1a1a1a;
+    min-height: 100vh; color: #1a1a1a;
     transition: background .3s ease;
+    background:
+      radial-gradient(circle at 15% 15%, rgba(255,255,255,.07), transparent 45%),
+      radial-gradient(circle at 85% 90%, rgba(255,255,255,.05), transparent 40%),
+      linear-gradient(145deg, var(--navy-dark) 0%, var(--navy) 55%, var(--navy-light) 100%);
+    background-attachment: fixed;
   }
+  .wrap { width: 100%; max-width: 380px; margin: 16px; }
+  .logo-box { text-align: center; margin-bottom: 18px; }
+  .logo-box img { width: 140px; height: auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)); }
   .card {
-    width: 100%; max-width: 380px; margin: 16px; padding: 28px;
-    background: #fff; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    width: 100%; box-sizing: border-box; padding: 28px;
+    background: #fff; border-radius: 18px; box-shadow: 0 12px 32px rgba(0,0,0,.35);
     text-align: center;
   }
-  h1 { font-size: 18px; margin: 0 0 18px; }
+  h1 { font-size: 18px; margin: 0 0 18px; color: var(--navy-dark); }
   input[type=text] {
-    width: 100%; box-sizing: border-box; padding: 12px; margin-bottom: 12px;
-    border: 1px solid #ccc; border-radius: 8px; font-size: 15px;
+    width: 100%; box-sizing: border-box; padding: 13px 14px; margin-bottom: 12px;
+    border: 1.5px solid #dde1ea; border-radius: 10px; font-size: 15px;
+    transition: border-color .15s ease;
+  }
+  input[type=text]:focus {
+    outline: none; border-color: var(--navy-light);
   }
   button {
-    width: 100%; padding: 13px; border: none; border-radius: 8px;
-    background: #2563eb; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+    width: 100%; padding: 13px; border: none; border-radius: 10px;
+    background: linear-gradient(135deg, var(--navy-light), var(--navy-dark));
+    color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: opacity .15s ease;
   }
+  button:hover { opacity: .9; }
   .espera { font-size: 15px; color: #555; }
-  .pulso { width: 60px; height: 60px; margin: 16px auto; border-radius: 50%; background: #fbbf24; animation: pulso 1.5s infinite; }
+  .pulso {
+    width: 60px; height: 60px; margin: 16px auto; border-radius: 50%;
+    background: var(--navy-light); animation: pulso 1.5s infinite;
+  }
   @keyframes pulso { 0%{ transform: scale(1); opacity: .7 } 50%{ transform: scale(1.15); opacity: 1 } 100%{ transform: scale(1); opacity: .7 } }
-  .chamado { background: #dcfce7; }
   .chamado .card { background: #16a34a; color: #fff; }
   .doca-numero { font-size: 48px; font-weight: 800; margin: 10px 0; }
-  .btn-cheguei { background: #fff; color: #16a34a; margin-top: 16px; }
+  .btn-cheguei { background: #fff; color: #16a34a; margin-top: 16px; background-image: none; }
   .btn-cheguei:disabled { opacity: .6; cursor: default; }
   .confirmado { color: #fff; margin-top: 14px; font-size: 14px; }
   .hidden { display: none; }
 </style>
 </head>
 <body id="body">
-<div class="card" id="card">
+<div class="wrap">
+  <div class="logo-box"><img src="/static/logo-dsv.webp" alt="DSV" /></div>
+  <div class="card" id="card">
 
   <div id="form-entrada">
     <h1>Entrar na fila da doca</h1>
     <input type="text" id="nome" placeholder="Seu nome" />
-    <input type="text" id="placa" placeholder="Placa do veiculo" />
+    <input type="text" id="carga" placeholder="ID da carga" />
     <button onclick="entrarNaFila()">Entrar na fila</button>
   </div>
 
@@ -62,6 +86,7 @@
     <p class="confirmado hidden" id="confirmado-texto">Chegada registrada! Aguarde o operador.</p>
   </div>
 
+  </div>
 </div>
 
 <script>
@@ -76,12 +101,12 @@ function mostrarTela(id) {
 
 async function entrarNaFila() {
   const nome = document.getElementById("nome").value.trim();
-  const placa = document.getElementById("placa").value.trim();
-  if (!nome || !placa) { alert("Preencha nome e placa"); return; }
+  const carga = document.getElementById("carga").value.trim();
+  if (!nome || !carga) { alert("Preencha nome e ID da carga"); return; }
   const res = await fetch("/api/motoristas", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nome, placa }),
+    body: JSON.stringify({ nome, carga }),
   });
   const data = await res.json();
   motoristaId = data.id;

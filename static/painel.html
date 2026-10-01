@@ -39,7 +39,7 @@
 <main>
   <table>
     <thead>
-      <tr><th>Motorista</th><th>Placa</th><th>Status</th><th>Doca</th><th>Acao</th></tr>
+      <tr><th>Motorista</th><th>ID da carga</th><th>Status</th><th>Doca</th><th>Acao</th></tr>
     </thead>
     <tbody id="tbody"></tbody>
   </table>
@@ -71,8 +71,8 @@ async function carregar() {
     const tdNome = document.createElement("td");
     tdNome.textContent = m.nome;
 
-    const tdPlaca = document.createElement("td");
-    tdPlaca.textContent = m.placa;
+    const tdCarga = document.createElement("td");
+    tdCarga.textContent = m.carga;
 
     const tdStatus = document.createElement("td");
     const span = document.createElement("span");
@@ -110,7 +110,7 @@ async function carregar() {
     }
 
     tdAcao.appendChild(wrap);
-    tr.append(tdNome, tdPlaca, tdStatus, tdDoca, tdAcao);
+    tr.append(tdNome, tdCarga, tdStatus, tdDoca, tdAcao);
     tbody.appendChild(tr);
   }
 }

@@ -2,8 +2,8 @@
 App de chamada de motoristas para doca.
 
 - Operador abre "/" (painel) e chama motoristas para uma doca.
-- Motorista abre "/motorista" no celular, entra na fila com nome/placa,
-  e espera. Quando chamado, recebe uma notificacao push no celular (mesmo
+- Motorista abre "/motorista" no celular, entra na fila com nome e ID
+  da carga, e espera. Quando chamado, recebe uma notificacao push no celular (mesmo
   com o navegador em segundo plano) e, se a pagina estiver aberta, toca
   um bip e vibra.
 
@@ -63,7 +63,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS motoristas (
                 id SERIAL PRIMARY KEY,
                 nome TEXT NOT NULL,
-                placa TEXT NOT NULL,
+                carga TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'aguardando',
                 doca TEXT,
                 criado_em TIMESTAMPTZ NOT NULL,
@@ -79,6 +79,14 @@ def init_db():
             )
             """
         )
+        colunas = {
+            row["column_name"]
+            for row in conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'motoristas'"
+            ).fetchall()
+        }
+        if "placa" in colunas and "carga" not in colunas:
+            conn.execute("ALTER TABLE motoristas RENAME COLUMN placa TO carga")
 
 
 init_db()
@@ -86,7 +94,7 @@ init_db()
 
 class NovoMotorista(BaseModel):
     nome: str
-    placa: str
+    carga: str
 
 
 class ChamarPayload(BaseModel):
@@ -126,13 +134,13 @@ def vapid_public_key():
 @app.post("/api/motoristas")
 def criar_motorista(payload: NovoMotorista):
     nome = payload.nome.strip()
-    placa = payload.placa.strip().upper()
-    if not nome or not placa:
-        raise HTTPException(400, "Nome e placa sao obrigatorios")
+    carga = payload.carga.strip().upper()
+    if not nome or not carga:
+        raise HTTPException(400, "Nome e ID da carga sao obrigatorios")
     with get_db() as conn:
         row = conn.execute(
-            "INSERT INTO motoristas (nome, placa, status, criado_em) VALUES (%s, %s, 'aguardando', %s) RETURNING id",
-            (nome, placa, datetime.now(timezone.utc)),
+            "INSERT INTO motoristas (nome, carga, status, criado_em) VALUES (%s, %s, 'aguardando', %s) RETURNING id",
+            (nome, carga, datetime.now(timezone.utc)),
         ).fetchone()
         return {"id": row["id"]}
 

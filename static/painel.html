@@ -5,38 +5,73 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Painel da Doca</title>
 <style>
-  :root { color-scheme: light; }
-  body { font-family: system-ui, Arial, sans-serif; margin: 0; background: #f4f5f7; color: #1a1a1a; }
-  header { background: #1f2937; color: #fff; padding: 16px 20px; }
-  header h1 { margin: 0; font-size: 20px; }
-  main { max-width: 900px; margin: 20px auto; padding: 0 16px; }
-  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
-  th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #eee; }
-  th { background: #eef0f3; font-size: 13px; text-transform: uppercase; color: #555; }
+  :root {
+    color-scheme: light;
+    --navy-dark: #0a1638;
+    --navy: #16255c;
+    --navy-light: #1d3a8f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, Arial, sans-serif; margin: 0;
+    background: #eef1f7; color: #1a1a1a;
+  }
+  header {
+    background: linear-gradient(120deg, var(--navy-dark), var(--navy) 60%, var(--navy-light));
+    color: #fff; padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.15);
+  }
+  header .logo { background: #fff; border-radius: 8px; padding: 6px 12px; display: flex; align-items: center; }
+  header .logo img { height: 22px; display: block; }
+  header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+  main { max-width: 960px; margin: 28px auto; padding: 0 20px; }
+  .panel-title { font-size: 14px; font-weight: 600; color: #46516b; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px 4px; }
+  table {
+    width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px;
+    overflow: hidden; box-shadow: 0 2px 10px rgba(16,24,60,.08);
+  }
+  th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #eef0f5; }
+  th {
+    background: #f4f6fb; font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+    color: #5a6480; font-weight: 700;
+  }
   tr:last-child td { border-bottom: none; }
-  .status { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  tr:hover td { background: #fafbfe; }
+  .status { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
   .status-aguardando { background: #fef3c7; color: #92400e; }
   .status-chamado { background: #dbeafe; color: #1e40af; }
   .status-na_doca { background: #d1fae5; color: #065f46; }
-  .row-actions { display: flex; gap: 6px; align-items: center; }
-  select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; }
-  button { padding: 7px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
-  .btn-chamar { background: #2563eb; color: #fff; }
-  .btn-finalizar { background: #9ca3af; color: #fff; }
-  .empty { padding: 30px; text-align: center; color: #888; }
-  .refresh-note { font-size: 12px; color: #888; margin-top: 10px; }
-  .qr-box {
-    margin-top: 24px; background: #fff; border-radius: 8px; padding: 18px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.1); display: flex; align-items: center; gap: 16px;
+  .row-actions { display: flex; gap: 8px; align-items: center; }
+  select {
+    padding: 8px 10px; border: 1.5px solid #dde1ea; border-radius: 8px; font-size: 13px;
+    background: #fff; color: #1a1a1a;
   }
-  .qr-box img { width: 120px; height: 120px; display: block; }
+  button {
+    padding: 8px 14px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 700; transition: opacity .15s ease;
+  }
+  button:hover { opacity: .88; }
+  .btn-chamar { background: linear-gradient(135deg, var(--navy-light), var(--navy-dark)); color: #fff; }
+  .btn-finalizar { background: #9ca3af; color: #fff; }
+  .empty { padding: 36px; text-align: center; color: #8891a8; background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(16,24,60,.08); }
+  .refresh-note { font-size: 12px; color: #8891a8; margin: 10px 0 0 4px; }
+  .qr-box {
+    margin-top: 28px; background: #fff; border-radius: 12px; padding: 20px;
+    box-shadow: 0 2px 10px rgba(16,24,60,.08); display: flex; align-items: center; gap: 18px;
+  }
+  .qr-box img { width: 110px; height: 110px; display: block; border-radius: 8px; }
   .qr-box div p { margin: 0 0 6px; font-size: 13px; color: #444; }
-  .qr-box code { font-size: 12px; background: #f1f1f1; padding: 2px 6px; border-radius: 4px; }
+  .qr-box code { font-size: 12px; background: #f1f3f8; padding: 3px 8px; border-radius: 6px; color: var(--navy); }
 </style>
 </head>
 <body>
-<header><h1>Painel da Doca - Chamada de Motoristas</h1></header>
+<header>
+  <span class="logo"><img src="/static/logo-dsv.webp" alt="DSV" /></span>
+  <h1>Painel da Doca &mdash; Chamada de Motoristas</h1>
+</header>
 <main>
+  <p class="panel-title">Fila de motoristas</p>
   <table>
     <thead>
       <tr><th>Motorista</th><th>ID da carga</th><th>Status</th><th>Doca</th><th>Acao</th></tr>

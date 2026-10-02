@@ -32,8 +32,9 @@ import qrcode
 from psycopg.rows import dict_row
 from pywebpush import WebPushException, webpush
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+import indicadores
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -52,10 +53,6 @@ CODIGO_CADASTRO = os.environ["CODIGO_CADASTRO"]
 
 app = FastAPI(title="Chamada de Doca")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax", https_only=True)
-
-TZ = "America/Sao_Paulo"
-INICIO_DO_DIA = f"(date_trunc('day', now() AT TIME ZONE '{TZ}') AT TIME ZONE '{TZ}')"
-
 
 def logado(request: Request) -> bool:
     return bool(request.session.get("auth"))
@@ -125,6 +122,14 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS configuracoes (
+                chave TEXT PRIMARY KEY,
+                valor TEXT NOT NULL
+            )
+            """
+        )
         colunas = {
             row["column_name"]
             for row in conn.execute(
@@ -137,6 +142,10 @@ def init_db():
             conn.execute("ALTER TABLE motoristas ADD COLUMN fornecedor TEXT")
         if "finalizado_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN finalizado_em TIMESTAMPTZ")
+        if "chegou_em" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN chegou_em TIMESTAMPTZ")
+        if "removido_em" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN removido_em TIMESTAMPTZ")
 
 
 init_db()
@@ -263,7 +272,7 @@ def criar_motorista(payload: NovoMotorista):
 def salvar_subscription(motorista_id: int, payload: SubscriptionPayload):
     with get_db() as conn:
         existe = conn.execute(
-            "SELECT id FROM motoristas WHERE id = %s", (motorista_id,)
+            "SELECT id FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)
         ).fetchone()
         if not existe:
             raise HTTPException(404, "Motorista nao encontrado")
@@ -282,7 +291,7 @@ def salvar_subscription(motorista_id: int, payload: SubscriptionPayload):
 def listar_motoristas(_: None = Depends(exigir_login_api)):
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM motoristas WHERE status != 'finalizado' ORDER BY criado_em ASC"
+            "SELECT * FROM motoristas WHERE status != 'finalizado' AND removido_em IS NULL ORDER BY criado_em ASC"
         ).fetchall()
         return rows
 
@@ -291,84 +300,51 @@ def listar_motoristas(_: None = Depends(exigir_login_api)):
 def historico_motoristas(_: None = Depends(exigir_login_api)):
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM motoristas WHERE status = 'finalizado' ORDER BY criado_em DESC LIMIT 200"
+            "SELECT * FROM motoristas WHERE status = 'finalizado' AND removido_em IS NULL ORDER BY criado_em DESC LIMIT 200"
         ).fetchall()
         return rows
 
 
+class MetaPayload(BaseModel):
+    minutos: int = Field(ge=1, le=1440)
+
+
 @app.get("/api/dashboard")
-def dashboard_dados(_: None = Depends(exigir_login_api)):
+def dashboard_dados(periodo: str = "hoje", _: None = Depends(exigir_login_api)):
     with get_db() as conn:
-        fila_atual = conn.execute(
-            "SELECT COUNT(*) AS n FROM motoristas WHERE status != 'finalizado'"
-        ).fetchone()["n"]
+        return indicadores.calcular_dashboard(conn, periodo)
 
-        atendidos_hoje = conn.execute(
-            """
-            SELECT COUNT(*) AS n FROM motoristas
-            WHERE status = 'finalizado' AND finalizado_em >= {INICIO_DO_DIA}
-            """.replace("{INICIO_DO_DIA}", INICIO_DO_DIA)
-        ).fetchone()["n"]
 
-        espera_media_hoje = conn.execute(
+@app.put("/api/config/meta")
+def definir_meta(payload: MetaPayload, _: None = Depends(exigir_login_api)):
+    with get_db() as conn:
+        conn.execute(
             """
-            SELECT AVG(EXTRACT(EPOCH FROM (chamado_em - criado_em))) AS media
-            FROM motoristas
-            WHERE chamado_em IS NOT NULL AND chamado_em >= {INICIO_DO_DIA}
-            """.replace("{INICIO_DO_DIA}", INICIO_DO_DIA)
-        ).fetchone()["media"]
+            INSERT INTO configuracoes (chave, valor) VALUES ('meta_espera_min', %s)
+            ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor
+            """,
+            (str(payload.minutos),),
+        )
+    return {"ok": True, "meta_espera_min": payload.minutos}
 
-        total_historico = conn.execute(
-            "SELECT COUNT(*) AS n FROM motoristas WHERE status = 'finalizado'"
-        ).fetchone()["n"]
 
-        por_doca = conn.execute(
-            """
-            SELECT doca, COUNT(*) AS n FROM motoristas
-            WHERE doca IS NOT NULL GROUP BY doca ORDER BY doca
-            """
-        ).fetchall()
-
-        por_fornecedor = conn.execute(
-            """
-            SELECT COALESCE(fornecedor, 'NAO INFORMADO') AS fornecedor,
-                   COUNT(*) AS n,
-                   ROUND(AVG(EXTRACT(EPOCH FROM (chamado_em - criado_em)))) AS espera_media_seg
-            FROM motoristas
-            GROUP BY COALESCE(fornecedor, 'NAO INFORMADO')
-            ORDER BY n DESC, fornecedor
-            LIMIT 15
-            """
-        ).fetchall()
-
-        ultimos_dias = conn.execute(
-            """
-            SELECT to_char(criado_em AT TIME ZONE '{TZ}', 'YYYY-MM-DD') AS dia, COUNT(*) AS n
-            FROM motoristas
-            WHERE criado_em >= {INICIO_DO_DIA} - interval '6 days'
-            GROUP BY dia ORDER BY dia
-            """.replace("{TZ}", TZ).replace("{INICIO_DO_DIA}", INICIO_DO_DIA)
-        ).fetchall()
-
-    return {
-        "fila_atual": fila_atual,
-        "atendidos_hoje": atendidos_hoje,
-        "espera_media_hoje_seg": round(espera_media_hoje) if espera_media_hoje is not None else None,
-        "total_historico": total_historico,
-        "por_doca": por_doca,
-        "por_fornecedor": [
-            {**f, "espera_media_seg": int(f["espera_media_seg"]) if f["espera_media_seg"] is not None else None}
-            for f in por_fornecedor
-        ],
-        "ultimos_dias": ultimos_dias,
-    }
+@app.get("/api/exportar.csv")
+def exportar_csv(periodo: str = "hoje", _: None = Depends(exigir_login_api)):
+    with get_db() as conn:
+        conteudo = indicadores.gerar_csv(conn, periodo)
+    nome = f"motoristas_{periodo}_{datetime.now(indicadores.TZ):%Y%m%d_%H%M}.csv"
+    return Response(
+        conteudo,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+    )
 
 
 @app.get("/api/motoristas/{motorista_id}")
 def status_motorista(motorista_id: int):
     with get_db() as conn:
         row = conn.execute(
-            "SELECT * FROM motoristas WHERE id = %s", (motorista_id,)
+            "SELECT * FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)
         ).fetchone()
         if not row:
             raise HTTPException(404, "Motorista nao encontrado")
@@ -382,11 +358,11 @@ def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depend
         raise HTTPException(400, "Doca deve ser A ou B")
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET status = 'chamado', doca = %s, chamado_em = %s WHERE id = %s AND status = 'aguardando'",
+            "UPDATE motoristas SET status = 'chamado', doca = %s, chamado_em = %s WHERE id = %s AND status = 'aguardando' AND removido_em IS NULL",
             (doca, datetime.now(timezone.utc), motorista_id),
         )
         if cur.rowcount == 0:
-            existe = conn.execute("SELECT 1 FROM motoristas WHERE id = %s", (motorista_id,)).fetchone()
+            existe = conn.execute("SELECT 1 FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)).fetchone()
             if not existe:
                 raise HTTPException(404, "Motorista nao encontrado")
             raise HTTPException(409, "Motorista ja foi chamado")
@@ -398,11 +374,11 @@ def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depend
 def motorista_chegou(motorista_id: int):
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET status = 'na_doca' WHERE id = %s AND status = 'chamado'",
-            (motorista_id,),
+            "UPDATE motoristas SET status = 'na_doca', chegou_em = %s WHERE id = %s AND status = 'chamado' AND removido_em IS NULL",
+            (datetime.now(timezone.utc), motorista_id),
         )
         if cur.rowcount == 0:
-            row = conn.execute("SELECT status FROM motoristas WHERE id = %s", (motorista_id,)).fetchone()
+            row = conn.execute("SELECT status FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)).fetchone()
             if not row:
                 raise HTTPException(404, "Motorista nao encontrado")
             if row["status"] != "na_doca":
@@ -414,11 +390,11 @@ def motorista_chegou(motorista_id: int):
 def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET status = 'finalizado', finalizado_em = %s WHERE id = %s AND status != 'finalizado'",
+            "UPDATE motoristas SET status = 'finalizado', finalizado_em = %s WHERE id = %s AND status != 'finalizado' AND removido_em IS NULL",
             (datetime.now(timezone.utc), motorista_id),
         )
         if cur.rowcount == 0:
-            existe = conn.execute("SELECT 1 FROM motoristas WHERE id = %s", (motorista_id,)).fetchone()
+            existe = conn.execute("SELECT 1 FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)).fetchone()
             if not existe:
                 raise HTTPException(404, "Motorista nao encontrado")
         return {"ok": True}
@@ -429,7 +405,7 @@ def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depend
     nome, carga, fornecedor = normalizar_motorista(payload)
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s WHERE id = %s",
+            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s WHERE id = %s AND removido_em IS NULL",
             (nome, carga, fornecedor, motorista_id),
         )
         if cur.rowcount == 0:
@@ -440,7 +416,10 @@ def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depend
 @app.delete("/api/motoristas/{motorista_id}")
 def remover_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
     with get_db() as conn:
-        cur = conn.execute("DELETE FROM motoristas WHERE id = %s", (motorista_id,))
+        cur = conn.execute(
+            "UPDATE motoristas SET removido_em = %s WHERE id = %s AND removido_em IS NULL",
+            (datetime.now(timezone.utc), motorista_id),
+        )
         if cur.rowcount == 0:
             raise HTTPException(404, "Motorista nao encontrado")
         return {"ok": True}

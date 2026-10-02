@@ -11,75 +11,114 @@
     --navy-dark: #0a1638;
     --navy: #16255c;
     --navy-light: #1d3a8f;
+    --ruim: #b42318;
+    --bom: #067647;
+    --muted: #6b7488;
   }
   * { box-sizing: border-box; }
-  body {
-    font-family: system-ui, Arial, sans-serif; margin: 0;
-    background: #eef1f7; color: #1a1a1a;
-  }
+  html, body { overflow-x: hidden; }
+  body { font-family: system-ui, Arial, sans-serif; margin: 0; background: #eef1f7; color: #1a1a1a; }
   header {
     background: linear-gradient(120deg, var(--navy-dark), var(--navy) 60%, var(--navy-light));
-    color: #fff; padding: 16px 24px;
-    display: flex; align-items: center; gap: 16px;
+    color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 16px;
     box-shadow: 0 2px 10px rgba(0,0,0,.15);
   }
   header .logo { background: #fff; border-radius: 8px; padding: 6px 12px; display: flex; align-items: center; }
   header .logo img { height: 22px; display: block; }
   header h1 { margin: 0; font-size: 19px; font-weight: 600; flex: 1; }
-  header a.nav-link, header button.nav-link {
+  .nav-link {
     background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.3);
-    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
-    text-decoration: none;
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none;
   }
-  header a.nav-link:hover, header button.nav-link:hover { background: rgba(255,255,255,.2); }
-  main { max-width: 1000px; margin: 28px auto; padding: 0 20px; }
-  .cards {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px;
-    margin-bottom: 28px;
+  .nav-link:hover { background: rgba(255,255,255,.2); }
+  main { max-width: 1040px; margin: 24px auto; padding: 0 20px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 22px; }
+  .seg { display: inline-flex; background: #fff; border-radius: 10px; padding: 3px; box-shadow: 0 1px 6px rgba(16,24,60,.1); }
+  .seg button {
+    border: none; background: none; padding: 8px 16px; font-size: 13px; font-weight: 700;
+    color: var(--muted); border-radius: 8px; cursor: pointer;
   }
-  .card {
-    background: #fff; border-radius: 14px; padding: 20px;
-    box-shadow: 0 2px 10px rgba(16,24,60,.08);
+  .seg button.ativo { background: linear-gradient(135deg, var(--navy-light), var(--navy-dark)); color: #fff; }
+  .toolbar .espaco { flex: 1; }
+  .meta-box { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .meta-box input {
+    width: 64px; padding: 7px 8px; border: 1.5px solid #dde1ea; border-radius: 8px; font-size: 14px; text-align: center;
   }
-  .card .valor { font-size: 32px; font-weight: 800; color: var(--navy-dark); }
-  .card .label { font-size: 13px; color: #6b7488; margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
-  .panel-title { font-size: 14px; font-weight: 600; color: #46516b; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px 4px; }
-  .box {
-    background: #fff; border-radius: 14px; padding: 22px;
-    box-shadow: 0 2px 10px rgba(16,24,60,.08); margin-bottom: 24px;
+  .btn-mini {
+    border: none; background: #fff; color: var(--navy); font-weight: 700; font-size: 13px;
+    padding: 8px 12px; border-radius: 8px; cursor: pointer; box-shadow: 0 1px 6px rgba(16,24,60,.1); text-decoration: none;
   }
-  .barras { display: flex; align-items: flex-end; gap: 14px; height: 180px; padding-top: 10px; }
-  .barra-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
-  .barra {
-    width: 100%; max-width: 46px; border-radius: 6px 6px 0 0;
-    background: linear-gradient(180deg, var(--navy-light), var(--navy-dark));
-    transition: height .4s ease;
-  }
-  .barra-num { font-size: 12px; font-weight: 700; color: var(--navy-dark); margin-bottom: 4px; }
-  .barra-label { font-size: 11px; color: #8891a8; margin-top: 8px; text-align: center; }
-  .docas { display: flex; gap: 20px; }
-  .doca-item { flex: 1; }
-  .doca-item .nome { font-size: 13px; font-weight: 700; color: #46516b; margin-bottom: 6px; }
-  .doca-barra-fundo { background: #eef0f5; border-radius: 999px; height: 14px; overflow: hidden; }
-  .doca-barra-preenchida { height: 100%; background: linear-gradient(90deg, var(--navy-light), var(--navy-dark)); border-radius: 999px; }
-  .doca-item .qtd { font-size: 12px; color: #6b7488; margin-top: 6px; }
-  .vazio { color: #8891a8; font-size: 13px; text-align: center; padding: 20px; }
-  .forn-item { padding: 12px 0; border-bottom: 1px solid #eef0f5; }
-  .forn-item:last-child { border-bottom: none; }
-  .forn-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+
+  .secao { font-size: 13px; font-weight: 700; color: #46516b; text-transform: uppercase; letter-spacing: .05em; margin: 26px 0 10px 4px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+  .card { background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 2px 10px rgba(16,24,60,.08); }
+  .card .valor { font-size: 30px; font-weight: 800; color: var(--navy-dark); font-variant-numeric: tabular-nums; }
+  .card .label { font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+  .card .sub { font-size: 12px; margin-top: 6px; color: var(--muted); }
+  .card.alerta { border: 2px solid #f5b5ae; background: #fff6f5; }
+  .card.alerta .valor { color: var(--ruim); }
+  .pior { color: var(--ruim); font-weight: 700; }
+  .melhor { color: var(--bom); font-weight: 700; }
+
+  .criticos { margin-top: 12px; background: #fff6f5; border: 1.5px solid #f5b5ae; border-radius: 12px; padding: 12px 16px; }
+  .criticos h3 { margin: 0 0 8px; font-size: 13px; color: var(--ruim); }
+  .critico { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 4px 0; }
+  .critico b { color: var(--ruim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  .box { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px rgba(16,24,60,.08); }
+  .vazio { color: #8891a8; font-size: 13px; text-align: center; padding: 18px; }
+
+  .jornada { display: flex; height: 16px; border-radius: 999px; overflow: hidden; background: #eef0f5; margin-bottom: 6px; }
+  .jornada span { display: block; height: 100%; }
+  .j-fila { background: #1d3a8f; } .j-desl { background: #5b8def; } .j-atend { background: #0a1638; }
+  .legenda { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+  .legenda i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; }
+  .etapa { display: grid; grid-template-columns: 1.3fr repeat(4, 1fr) .6fr; gap: 8px; padding: 12px 0; border-top: 1px solid #eef0f5; align-items: center; }
+  .etapa.cab { border-top: none; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding-top: 0; }
+  .etapa .nome { font-weight: 700; font-size: 14px; color: var(--navy-dark); }
+  .etapa .nome small { display: block; font-weight: 500; font-size: 11px; color: var(--muted); }
+  .etapa .num { font-variant-numeric: tabular-nums; font-size: 14px; }
+  .etapa .num.dest { font-weight: 800; color: var(--navy-dark); }
+  .aviso-amostra { font-size: 12px; color: #92400e; background: #fef3c7; padding: 6px 10px; border-radius: 8px; margin-top: 10px; }
+
+  .barras { display: flex; align-items: flex-end; gap: 4px; height: 150px; padding-top: 18px; }
+  .barras.dias { gap: 10px; }
+  .barra-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .barra { width: 100%; max-width: 34px; border-radius: 5px 5px 0 0; background: linear-gradient(180deg, var(--navy-light), var(--navy-dark)); transition: height .4s ease; }
+  .barra.pico { background: linear-gradient(180deg, #5b8def, var(--navy-light)); }
+  .barra-num { font-size: 10px; font-weight: 700; color: var(--navy-dark); margin-bottom: 3px; }
+  .barra-label { font-size: 10px; color: #8891a8; margin-top: 6px; }
+
+  .docas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .fundo { background: #eef0f5; border-radius: 999px; height: 12px; overflow: hidden; }
+  .preenchido { height: 100%; background: linear-gradient(90deg, var(--navy-light), var(--navy-dark)); border-radius: 999px; }
+  .doca-nome { font-size: 14px; font-weight: 800; color: var(--navy-dark); margin-bottom: 8px; }
+  .doca-meta { font-size: 12px; color: var(--muted); margin-top: 7px; }
+
+  .forn { padding: 12px 0; border-bottom: 1px solid #eef0f5; }
+  .forn:last-child { border-bottom: none; }
+  .forn-topo { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; align-items: baseline; }
   .forn-nome { font-size: 14px; font-weight: 700; color: var(--navy-dark); word-break: break-word; }
-  .forn-meta { font-size: 12px; color: #6b7488; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .forn-meta { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
   .forn-meta b { color: var(--navy-dark); }
-  html, body { overflow-x: hidden; }
+  .tag-pouco { font-size: 10px; font-weight: 700; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 6px; margin-left: 6px; }
+
   @media (max-width: 700px) {
     header { flex-wrap: wrap; padding: 12px 16px; gap: 10px; }
     header h1 { font-size: 17px; }
-    main { margin: 18px auto; padding: 0 14px; }
-    .cards { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .card { padding: 16px; }
-    .card .valor { font-size: 24px; }
-    .barras { gap: 8px; }
-    .docas { flex-direction: column; }
+    main { margin: 16px auto; padding: 0 14px; }
+    .cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .card { padding: 14px; } .card .valor { font-size: 24px; }
+    .toolbar .espaco { display: none; }
+    .etapa { grid-template-columns: 1fr 1fr 1fr; }
+    .etapa.cab { display: none; }
+    .etapa .nome { grid-column: 1 / -1; }
+    .etapa .num::before { content: attr(data-l); display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 700; }
+    .barras { gap: 2px; }
+    .barra-label { font-size: 9px; }
+    .forn-topo { flex-direction: column; gap: 2px; }
+    .forn-meta { text-align: left; }
   }
 </style>
 </head>
@@ -91,153 +130,287 @@
   <button class="nav-link" onclick="sair()">Sair</button>
 </header>
 <main>
-  <div class="cards">
-    <div class="card">
-      <div class="valor" id="v-fila">-</div>
-      <div class="label">Na fila agora</div>
+  <div class="toolbar">
+    <div class="seg" id="seg">
+      <button data-p="hoje">Hoje</button>
+      <button data-p="7d">7 dias</button>
+      <button data-p="30d">30 dias</button>
     </div>
-    <div class="card">
-      <div class="valor" id="v-atendidos">-</div>
-      <div class="label">Atendidos hoje</div>
+    <span class="espaco"></span>
+    <div class="meta-box">
+      Meta de espera
+      <input type="number" id="meta-input" min="1" max="1440" />
+      min
+      <button class="btn-mini" onclick="salvarMeta()">Salvar</button>
     </div>
-    <div class="card">
-      <div class="valor" id="v-espera">-</div>
-      <div class="label">Espera media hoje</div>
-    </div>
-    <div class="card">
-      <div class="valor" id="v-total">-</div>
-      <div class="label">Total no historico</div>
-    </div>
+    <a class="btn-mini" id="btn-csv" href="#">Exportar CSV</a>
   </div>
 
-  <p class="panel-title">Entradas nos ultimos 7 dias</p>
-  <div class="box">
-    <div class="barras" id="grafico-dias"></div>
-  </div>
+  <p class="secao" style="margin-top:0">Agora</p>
+  <div class="cards" id="cards-agora"></div>
+  <div id="criticos"></div>
 
-  <p class="panel-title">Uso por doca</p>
-  <div class="box">
-    <div class="docas" id="grafico-docas"></div>
-  </div>
+  <p class="secao" id="titulo-resumo">Resumo do periodo</p>
+  <div class="cards" id="cards-resumo"></div>
 
-  <p class="panel-title">Por fornecedor</p>
-  <div class="box">
-    <div id="lista-fornecedores"></div>
-  </div>
+  <p class="secao">Tempo por etapa</p>
+  <div class="box" id="etapas"></div>
+
+  <p class="secao">Chegadas por hora do dia</p>
+  <div class="box"><div class="barras" id="grafico-horas"></div></div>
+
+  <p class="secao" id="titulo-dias">Entradas por dia</p>
+  <div class="box"><div class="barras dias" id="grafico-dias"></div></div>
+
+  <p class="secao">Por doca</p>
+  <div class="docas" id="docas"></div>
+
+  <p class="secao">Por fornecedor</p>
+  <div class="box" id="fornecedores"></div>
 </main>
 <script>
-function formatarDuracao(seg) {
+let periodo = "hoje";
+try { periodo = localStorage.getItem("periodoDash") || "hoje"; } catch (e) {}
+let metaMin = 30;
+
+const LABEL_ANTERIOR = { hoje: "ontem", "7d": "7 dias anteriores", "30d": "30 dias anteriores" };
+
+function el(tag, cls, texto) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (texto !== undefined && texto !== null) e.textContent = texto;
+  return e;
+}
+
+function dur(seg) {
   if (seg == null) return "-";
-  const h = Math.floor(seg / 3600);
-  const m = Math.floor((seg % 3600) / 60);
-  const s = Math.floor(seg % 60);
+  const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), s = Math.floor(seg % 60);
   if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
   if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
   return `${s}s`;
 }
 
-function formatarDiaLabel(diaStr) {
-  const [, mes, dia] = diaStr.split("-");
-  return `${dia}/${mes}`;
+function delta(atual, ant, menorEMelhor) {
+  if (atual == null || ant == null || ant === 0) return null;
+  const pct = Math.round(((atual - ant) / ant) * 100);
+  if (pct === 0) return { texto: `igual a ${LABEL_ANTERIOR[periodo]}`, cls: "" };
+  const subiu = pct > 0;
+  const bom = menorEMelhor ? !subiu : subiu;
+  return { texto: `${subiu ? "▲" : "▼"} ${Math.abs(pct)}% vs ${LABEL_ANTERIOR[periodo]}`, cls: bom ? "melhor" : "pior" };
+}
+
+function card(valor, label, sub, cls) {
+  const c = el("div", "card" + (cls ? " " + cls : ""));
+  c.append(el("div", "valor", valor), el("div", "label", label));
+  if (sub) {
+    const s = el("div", "sub", typeof sub === "string" ? sub : sub.texto);
+    if (sub.cls) s.className += " " + sub.cls;
+    c.append(s);
+  }
+  return c;
+}
+
+function setAtivo() {
+  document.querySelectorAll("#seg button").forEach((b) => b.classList.toggle("ativo", b.dataset.p === periodo));
+  document.getElementById("btn-csv").href = `/api/exportar.csv?periodo=${periodo}`;
+}
+
+document.querySelectorAll("#seg button").forEach((b) => {
+  b.onclick = () => {
+    periodo = b.dataset.p;
+    try { localStorage.setItem("periodoDash", periodo); } catch (e) {}
+    setAtivo();
+    carregar();
+  };
+});
+
+function renderAgora(d) {
+  const a = d.agora;
+  const alvo = document.getElementById("cards-agora");
+  alvo.replaceChildren(
+    card(a.aguardando, "Aguardando chamada"),
+    card(a.chamados + a.na_doca, "Chamados / na doca", `${a.chamados} a caminho · ${a.na_doca} na doca`),
+    card(dur(a.maior_espera_seg), "Maior espera agora", a.maior_espera_seg != null ? `meta: ${d.meta_espera_min} min` : "ninguem aguardando",
+      a.maior_espera_seg != null && a.maior_espera_seg > d.meta_espera_min * 60 ? "alerta" : ""),
+    card(a.acima_meta, "Acima da meta agora", `esperando mais de ${d.meta_espera_min} min`, a.acima_meta > 0 ? "alerta" : "")
+  );
+  const c = document.getElementById("criticos");
+  c.replaceChildren();
+  if (a.criticos.length) {
+    const box = el("div", "criticos");
+    box.append(el("h3", null, "Esperando acima da meta"));
+    for (const x of a.criticos) {
+      const linha = el("div", "critico");
+      linha.append(el("span", null, `${x.nome} · carga ${x.carga} · ${x.fornecedor}`), el("b", null, dur(x.espera_seg)));
+      box.append(linha);
+    }
+    c.append(box);
+  }
+}
+
+function renderResumo(d) {
+  const r = d.resumo, ant = d.anterior, f = d.etapas.fila;
+  document.getElementById("titulo-resumo").textContent =
+    "Resumo — " + { hoje: "hoje", "7d": "ultimos 7 dias", "30d": "ultimos 30 dias" }[d.periodo];
+  const pct = r.dentro_meta_pct;
+  document.getElementById("cards-resumo").replaceChildren(
+    card(r.chegadas, "Chegadas", delta(r.chegadas, ant.chegadas, false)),
+    card(r.atendidos, "Atendidos", delta(r.atendidos, ant.atendidos, false)),
+    card(pct == null ? "-" : pct + "%", `Chamados em ate ${d.meta_espera_min} min`,
+      r.dentro_meta_total ? `${r.dentro_meta_n} de ${r.dentro_meta_total} motoristas` : "sem chamadas no periodo",
+      pct != null && pct < 80 ? "alerta" : ""),
+    card(dur(f.mediana), "Espera mediana na fila", delta(f.mediana, ant.espera_mediana, true) || (f.n ? `P90: ${dur(f.p90)}` : ""))
+  );
+}
+
+function renderEtapas(d) {
+  const e = d.etapas;
+  const box = document.getElementById("etapas");
+  box.replaceChildren();
+  const partes = [["fila", "j-fila", "Fila"], ["deslocamento", "j-desl", "Deslocamento"], ["atendimento", "j-atend", "Atendimento"]];
+  const soma = partes.reduce((t, [k]) => t + (e[k].mediana || 0), 0);
+  if (soma > 0) {
+    const barra = el("div", "jornada");
+    for (const [k, cls] of partes) {
+      const s = el("span", cls);
+      s.style.width = ((e[k].mediana || 0) / soma) * 100 + "%";
+      barra.append(s);
+    }
+    const leg = el("div", "legenda");
+    for (const [k, cls, nome] of partes) {
+      const item = el("span");
+      const i = el("i", cls);
+      item.append(i, `${nome}: ${dur(e[k].mediana)}`);
+      leg.append(item);
+    }
+    box.append(barra, leg);
+  }
+  const cab = el("div", "etapa cab");
+  for (const t of ["Etapa", "Mediana", "Media", "P90", "Maximo", "Registros"]) cab.append(el("span", null, t));
+  box.append(cab);
+  const defs = [
+    ["fila", "Fila", "entrada ate a chamada"],
+    ["deslocamento", "Deslocamento", "chamada ate chegar na doca"],
+    ["atendimento", "Atendimento", "chegada ate finalizar"],
+    ["total", "Total no patio", "entrada ate finalizar"],
+  ];
+  let poucos = false;
+  for (const [k, nome, desc] of defs) {
+    const s = e[k];
+    const linha = el("div", "etapa");
+    const n = el("div", "nome", nome);
+    n.append(el("small", null, desc));
+    linha.append(n);
+    const vals = [["Mediana", s.mediana, true], ["Media", s.media], ["P90", s.p90], ["Maximo", s.maximo]];
+    for (const [l, v, dest] of vals) {
+      const c = el("div", "num" + (dest ? " dest" : ""), dur(v));
+      c.dataset.l = l;
+      linha.append(c);
+    }
+    const c = el("div", "num", s.n);
+    c.dataset.l = "Registros";
+    linha.append(c);
+    if (s.n > 0 && s.n < 5) poucos = true;
+    box.append(linha);
+  }
+  if (poucos) box.append(el("div", "aviso-amostra", "Algumas etapas tem menos de 5 registros no periodo, entao os numeros ainda sao pouco confiaveis."));
+  if (e.atendimento.n === 0) box.append(el("div", "aviso-amostra", "Deslocamento e atendimento so aparecem para motoristas que tocaram em \"Cheguei na doca\" e foram finalizados depois da atualizacao do sistema."));
+}
+
+function barras(alvo, valores, rotulos, destacarMax) {
+  alvo.replaceChildren();
+  const max = Math.max(...valores, 1);
+  valores.forEach((v, i) => {
+    const col = el("div", "barra-col");
+    col.append(el("div", "barra-num", v > 0 ? v : ""));
+    const b = el("div", "barra" + (destacarMax && v === max && v > 0 ? " pico" : ""));
+    b.style.height = Math.max(3, (v / max) * 110) + "px";
+    col.append(b, el("div", "barra-label", rotulos[i]));
+    alvo.append(col);
+  });
+}
+
+function renderGraficos(d) {
+  barras(document.getElementById("grafico-horas"), d.por_hora, d.por_hora.map((_, h) => (h % 3 === 0 ? String(h).padStart(2, "0") : "")), true);
+  document.getElementById("titulo-dias").textContent = `Entradas por dia (ultimos ${d.por_dia.length} dias)`;
+  const rot = d.por_dia.map((x, i) => {
+    if (d.por_dia.length > 7 && i % 3 !== 0) return "";
+    const [, m, dia] = x.dia.split("-");
+    return `${dia}/${m}`;
+  });
+  barras(document.getElementById("grafico-dias"), d.por_dia.map((x) => x.n), rot, false);
+}
+
+function renderDocas(d) {
+  const total = d.por_doca.reduce((t, x) => t + x.n, 0);
+  const alvo = document.getElementById("docas");
+  alvo.replaceChildren();
+  for (const x of d.por_doca) {
+    const c = el("div", "card");
+    c.append(el("div", "doca-nome", "Doca " + x.doca));
+    const fundo = el("div", "fundo");
+    const p = el("div", "preenchido");
+    p.style.width = (total ? (x.n / total) * 100 : 0) + "%";
+    fundo.append(p);
+    c.append(fundo);
+    c.append(el("div", "doca-meta", `${x.n} motorista(s)${total ? " · " + Math.round((x.n / total) * 100) + "% do uso" : ""}`));
+    c.append(el("div", "doca-meta", `Atendimento medio: ${dur(x.atendimento_media)}`));
+    alvo.append(c);
+  }
+}
+
+function renderFornecedores(d) {
+  const box = document.getElementById("fornecedores");
+  box.replaceChildren();
+  if (!d.por_fornecedor.length) { box.append(el("p", "vazio", "Nenhum fornecedor registrado no periodo.")); return; }
+  const max = Math.max(...d.por_fornecedor.map((x) => x.n), 1);
+  for (const f of d.por_fornecedor) {
+    const item = el("div", "forn");
+    const topo = el("div", "forn-topo");
+    const nome = el("span", "forn-nome", f.fornecedor);
+    if (f.baixa_amostra) nome.append(el("span", "tag-pouco", "poucos registros"));
+    const meta = el("span", "forn-meta");
+    const b1 = el("b", null, f.n);
+    const b2 = el("b", null, dur(f.espera_media));
+    const b3 = el("b", null, dur(f.espera_max));
+    const b4 = el("b", null, dur(f.atendimento_media));
+    meta.append(b1, " chegada(s) · espera media ", b2, " · pior ", b3, " · atendimento ", b4);
+    topo.append(nome, meta);
+    const fundo = el("div", "fundo");
+    const p = el("div", "preenchido");
+    p.style.width = (f.n / max) * 100 + "%";
+    fundo.append(p);
+    item.append(topo, fundo);
+    box.append(item);
+  }
 }
 
 async function carregar() {
-  const res = await fetch("/api/dashboard");
+  const res = await fetch(`/api/dashboard?periodo=${periodo}`);
   if (res.status === 401) { window.location.href = "/login"; return; }
+  if (!res.ok) return;
   const d = await res.json();
-
-  document.getElementById("v-fila").textContent = d.fila_atual;
-  document.getElementById("v-atendidos").textContent = d.atendidos_hoje;
-  document.getElementById("v-espera").textContent = formatarDuracao(d.espera_media_hoje_seg);
-  document.getElementById("v-total").textContent = d.total_historico;
-  renderFornecedores(d.por_fornecedor || []);
-
-  const grafico = document.getElementById("grafico-dias");
-  grafico.innerHTML = "";
-  if (d.ultimos_dias.length === 0) {
-    grafico.innerHTML = '<p class="vazio">Sem dados nos ultimos 7 dias.</p>';
-  } else {
-    const max = Math.max(...d.ultimos_dias.map((x) => x.n), 1);
-    for (const item of d.ultimos_dias) {
-      const col = document.createElement("div");
-      col.className = "barra-col";
-      const num = document.createElement("div");
-      num.className = "barra-num";
-      num.textContent = item.n;
-      const barra = document.createElement("div");
-      barra.className = "barra";
-      barra.style.height = Math.max(6, (item.n / max) * 150) + "px";
-      const label = document.createElement("div");
-      label.className = "barra-label";
-      label.textContent = formatarDiaLabel(item.dia);
-      col.append(num, barra, label);
-      grafico.appendChild(col);
-    }
-  }
-
-  const docasEl = document.getElementById("grafico-docas");
-  docasEl.innerHTML = "";
-  if (d.por_doca.length === 0) {
-    docasEl.innerHTML = '<p class="vazio">Nenhuma doca utilizada ainda.</p>';
-  } else {
-    const maxDoca = Math.max(...d.por_doca.map((x) => x.n), 1);
-    for (const item of d.por_doca) {
-      const col = document.createElement("div");
-      col.className = "doca-item";
-      const nome = document.createElement("div");
-      nome.className = "nome";
-      nome.textContent = "Doca " + item.doca;
-      const fundo = document.createElement("div");
-      fundo.className = "doca-barra-fundo";
-      const preenchida = document.createElement("div");
-      preenchida.className = "doca-barra-preenchida";
-      preenchida.style.width = (item.n / maxDoca) * 100 + "%";
-      fundo.appendChild(preenchida);
-      const qtd = document.createElement("div");
-      qtd.className = "qtd";
-      qtd.textContent = item.n + " motorista(s)";
-      col.append(nome, fundo, qtd);
-      docasEl.appendChild(col);
-    }
-  }
+  metaMin = d.meta_espera_min;
+  const inp = document.getElementById("meta-input");
+  if (document.activeElement !== inp) inp.value = metaMin;
+  renderAgora(d);
+  renderResumo(d);
+  renderEtapas(d);
+  renderGraficos(d);
+  renderDocas(d);
+  renderFornecedores(d);
 }
 
-function renderFornecedores(lista) {
-  const el = document.getElementById("lista-fornecedores");
-  el.innerHTML = "";
-  if (lista.length === 0) {
-    el.innerHTML = '<p class="vazio">Nenhum fornecedor registrado ainda.</p>';
-    return;
-  }
-  const max = Math.max(...lista.map((x) => x.n), 1);
-  for (const f of lista) {
-    const item = document.createElement("div");
-    item.className = "forn-item";
-
-    const topo = document.createElement("div");
-    topo.className = "forn-topo";
-    const nome = document.createElement("span");
-    nome.className = "forn-nome";
-    nome.textContent = f.fornecedor;
-    const meta = document.createElement("span");
-    meta.className = "forn-meta";
-    const b1 = document.createElement("b");
-    b1.textContent = f.n;
-    const b2 = document.createElement("b");
-    b2.textContent = formatarDuracao(f.espera_media_seg);
-    meta.append(b1, " chegada(s) · espera media ", b2);
-    topo.append(nome, meta);
-
-    const fundo = document.createElement("div");
-    fundo.className = "doca-barra-fundo";
-    const pre = document.createElement("div");
-    pre.className = "doca-barra-preenchida";
-    pre.style.width = (f.n / max) * 100 + "%";
-    fundo.appendChild(pre);
-
-    item.append(topo, fundo);
-    el.appendChild(item);
-  }
+async function salvarMeta() {
+  const v = parseInt(document.getElementById("meta-input").value, 10);
+  if (!v || v < 1 || v > 1440) { alert("Informe a meta em minutos (1 a 1440)."); return; }
+  const res = await fetch("/api/config/meta", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ minutos: v }),
+  });
+  if (!res.ok) { alert("Nao foi possivel salvar a meta."); return; }
+  carregar();
 }
 
 async function sair() {
@@ -245,6 +418,7 @@ async function sair() {
   window.location.href = "/login";
 }
 
+setAtivo();
 carregar();
 setInterval(carregar, 15000);
 </script>

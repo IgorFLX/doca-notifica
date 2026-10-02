@@ -381,7 +381,7 @@ async function salvarEdicao() {
 }
 
 async function removerMotorista(m) {
-  const msg = `Remover "${m.nome}" (carga ${m.carga})?\n\nO registro sera apagado de vez, inclusive do historico e do dashboard.`;
+  const msg = `Remover "${m.nome}" (carga ${m.carga})?\n\nEle sai da fila, do historico e dos indicadores. O registro fica guardado no banco de dados.`;
   if (!confirm(msg)) return;
   const res = await apiFetch(`/api/motoristas/${m.id}`, { method: "DELETE" });
   if (!res.ok && res.status !== 404) alert("Nao foi possivel remover. Tente novamente.");

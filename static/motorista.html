@@ -21,7 +21,8 @@
     background: linear-gradient(145deg, var(--navy-dark) 0%, var(--navy) 45%, var(--navy-light) 75%, var(--navy) 100%);
     background-size: 200% 200%;
     animation: gradientShift 18s ease-in-out infinite alternate;
-    position: relative; overflow: hidden;
+    position: relative; overflow-x: hidden; overflow-y: auto;
+    min-height: 100vh; min-height: 100dvh;
   }
   @keyframes gradientShift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
   .bg-fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
@@ -111,6 +112,18 @@
     font-size: 18px; line-height: 1; font-weight: 700; cursor: pointer; padding: 0;
   }
   .aviso-ios .fechar-aviso:hover { background: rgba(122,82,0,.18); }
+
+  .wrap { margin: auto; padding: 16px 0; }
+  @media (max-width: 480px) {
+    .wrap { max-width: none; width: calc(100% - 32px); padding: 20px 0; }
+    .logo-box { margin-bottom: 16px; }
+    .logo-box span { padding: 14px 22px; border-radius: 14px; }
+    .logo-box img { width: 140px; }
+    .card { padding: 22px 18px; border-radius: 16px; }
+    h1 { font-size: 17px; }
+    input[type=text], button { font-size: 16px; }
+    .doca-numero { font-size: 56px; }
+  }
 </style>
 </head>
 <body id="body">
@@ -223,7 +236,9 @@ function iniciarEspera() {
 
 async function verificarStatus() {
   if (!motoristaId) return;
-  const res = await fetch(`/api/motoristas/${motoristaId}`);
+  const idConsultado = motoristaId;
+  const res = await fetch(`/api/motoristas/${idConsultado}`);
+  if (motoristaId !== idConsultado) return;
   if (!res.ok) {
     localStorage.removeItem("motoristaId");
     motoristaId = null;
@@ -232,6 +247,7 @@ async function verificarStatus() {
     return;
   }
   const m = await res.json();
+  if (motoristaId !== idConsultado) return;
   if (m.status === "chamado" || m.status === "na_doca") {
     document.getElementById("doca-numero").textContent = m.doca || "-";
     document.getElementById("body").classList.add("chamado");
@@ -241,6 +257,7 @@ async function verificarStatus() {
     if (m.status === "na_doca") {
       btn.classList.add("hidden");
       texto.classList.remove("hidden");
+      agendarReset();
     } else {
       btn.classList.remove("hidden");
       btn.disabled = false;
@@ -263,8 +280,7 @@ async function cheguei() {
     await fetch(`/api/motoristas/${motoristaId}/cheguei`, { method: "POST" });
     btn.classList.add("hidden");
     document.getElementById("confirmado-texto").classList.remove("hidden");
-    clearInterval(polling);
-    setTimeout(resetarParaNovaEntrada, 2500);
+    agendarReset();
   } catch (e) {
     btn.disabled = false;
     btn.textContent = "Cheguei na doca";
@@ -272,7 +288,17 @@ async function cheguei() {
   }
 }
 
+let resetAgendado = false;
+function agendarReset() {
+  if (resetAgendado) return;
+  resetAgendado = true;
+  clearInterval(polling);
+  setTimeout(resetarParaNovaEntrada, 2500);
+}
+
 function resetarParaNovaEntrada() {
+  resetAgendado = false;
+  clearInterval(polling);
   localStorage.removeItem("motoristaId");
   motoristaId = null;
   jaTocou = false;

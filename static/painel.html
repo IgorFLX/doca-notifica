@@ -72,7 +72,39 @@
   }
   .qr-box img { width: 110px; height: 110px; display: block; border-radius: 8px; }
   .qr-box div p { margin: 0 0 6px; font-size: 13px; color: #444; }
-  .qr-box code { font-size: 12px; background: #f1f3f8; padding: 3px 8px; border-radius: 6px; color: var(--navy); }
+  .qr-box code { font-size: 12px; background: #f1f3f8; padding: 3px 8px; border-radius: 6px; color: var(--navy); word-break: break-all; }
+  html, body { overflow-x: hidden; }
+
+  @media (max-width: 700px) {
+    header { flex-wrap: wrap; padding: 12px 16px; gap: 10px; }
+    header h1 { flex: 1 1 100%; order: 3; font-size: 16px; }
+    header .logo { order: 1; }
+    .nav-link { order: 2; margin-left: auto; }
+    .btn-sair { order: 2; }
+    main { margin: 18px auto; padding: 0 14px; }
+
+    table, thead, tbody, tr, th, td { display: block; width: 100%; }
+    thead { display: none; }
+    table { background: transparent; box-shadow: none; border-radius: 0; }
+    tr {
+      background: #fff; border-radius: 12px; margin-bottom: 12px;
+      box-shadow: 0 2px 10px rgba(16,24,60,.08); padding: 6px 4px;
+    }
+    td {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      padding: 9px 14px; border-bottom: 1px solid #f0f2f7; text-align: right;
+    }
+    td:last-child { border-bottom: none; }
+    td::before {
+      content: attr(data-label); font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .04em; color: #8891a8; text-align: left; flex-shrink: 0;
+    }
+    td[data-label=""]::before { content: none; }
+    td[data-label=""] { justify-content: stretch; }
+    .row-actions { width: 100%; justify-content: flex-end; }
+    .row-actions select, .row-actions button { flex: 1; min-height: 40px; }
+    .qr-box { flex-direction: column; text-align: center; }
+  }
 </style>
 </head>
 <body>
@@ -120,6 +152,10 @@ async function apiFetch(url, options) {
     throw new Error("Nao autenticado");
   }
   return res;
+}
+
+function rotular(tr, labels) {
+  [...tr.children].forEach((td, i) => td.setAttribute("data-label", labels[i] || ""));
 }
 
 function formatarDuracao(ms) {
@@ -196,6 +232,7 @@ async function carregar() {
 
     tdAcao.appendChild(wrap);
     tr.append(tdNome, tdCarga, tdStatus, tdDoca, tdEspera, tdAcao);
+    rotular(tr, ["Motorista", "ID da carga", "Status", "Doca", "Espera", ""]);
     tbody.appendChild(tr);
   }
 }
@@ -229,6 +266,7 @@ async function carregarHistorico() {
     tdFinalizado.textContent = m.finalizado_em ? new Date(m.finalizado_em).toLocaleString("pt-BR") : "-";
 
     tr.append(tdNome, tdCarga, tdDoca, tdEspera, tdFinalizado);
+    rotular(tr, ["Motorista", "ID da carga", "Doca", "Espera", "Finalizado"]);
     tbody.appendChild(tr);
   }
 }

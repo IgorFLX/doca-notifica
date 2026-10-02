@@ -95,6 +95,7 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 nome TEXT NOT NULL,
                 carga TEXT NOT NULL,
+                fornecedor TEXT,
                 status TEXT NOT NULL DEFAULT 'aguardando',
                 doca TEXT,
                 criado_em TIMESTAMPTZ NOT NULL,
@@ -129,6 +130,8 @@ def init_db():
         }
         if "placa" in colunas and "carga" not in colunas:
             conn.execute("ALTER TABLE motoristas RENAME COLUMN placa TO carga")
+        if "fornecedor" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN fornecedor TEXT")
         if "finalizado_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN finalizado_em TIMESTAMPTZ")
 
@@ -139,6 +142,7 @@ init_db()
 class NovoMotorista(BaseModel):
     nome: str
     carga: str
+    fornecedor: str
 
 
 class ChamarPayload(BaseModel):
@@ -235,12 +239,13 @@ def registrar(payload: RegistroPayload, request: Request):
 def criar_motorista(payload: NovoMotorista):
     nome = payload.nome.strip()
     carga = payload.carga.strip().upper()
-    if not nome or not carga:
-        raise HTTPException(400, "Nome e ID da carga sao obrigatorios")
+    fornecedor = " ".join(payload.fornecedor.split()).upper()
+    if not nome or not carga or not fornecedor:
+        raise HTTPException(400, "Nome, ID da carga e fornecedor sao obrigatorios")
     with get_db() as conn:
         row = conn.execute(
-            "INSERT INTO motoristas (nome, carga, status, criado_em) VALUES (%s, %s, 'aguardando', %s) RETURNING id",
-            (nome, carga, datetime.now(timezone.utc)),
+            "INSERT INTO motoristas (nome, carga, fornecedor, status, criado_em) VALUES (%s, %s, %s, 'aguardando', %s) RETURNING id",
+            (nome, carga, fornecedor, datetime.now(timezone.utc)),
         ).fetchone()
         return {"id": row["id"]}
 
@@ -315,6 +320,18 @@ def dashboard_dados(_: None = Depends(exigir_login_api)):
             """
         ).fetchall()
 
+        por_fornecedor = conn.execute(
+            """
+            SELECT COALESCE(fornecedor, 'NAO INFORMADO') AS fornecedor,
+                   COUNT(*) AS n,
+                   ROUND(AVG(EXTRACT(EPOCH FROM (chamado_em - criado_em)))) AS espera_media_seg
+            FROM motoristas
+            GROUP BY COALESCE(fornecedor, 'NAO INFORMADO')
+            ORDER BY n DESC, fornecedor
+            LIMIT 15
+            """
+        ).fetchall()
+
         ultimos_dias = conn.execute(
             """
             SELECT to_char(date_trunc('day', criado_em), 'YYYY-MM-DD') AS dia, COUNT(*) AS n
@@ -330,6 +347,10 @@ def dashboard_dados(_: None = Depends(exigir_login_api)):
         "espera_media_hoje_seg": round(espera_media_hoje) if espera_media_hoje else None,
         "total_historico": total_historico,
         "por_doca": por_doca,
+        "por_fornecedor": [
+            {**f, "espera_media_seg": int(f["espera_media_seg"]) if f["espera_media_seg"] is not None else None}
+            for f in por_fornecedor
+        ],
         "ultimos_dias": ultimos_dias,
     }
 

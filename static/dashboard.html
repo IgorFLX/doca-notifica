@@ -64,6 +64,12 @@
   .doca-barra-preenchida { height: 100%; background: linear-gradient(90deg, var(--navy-light), var(--navy-dark)); border-radius: 999px; }
   .doca-item .qtd { font-size: 12px; color: #6b7488; margin-top: 6px; }
   .vazio { color: #8891a8; font-size: 13px; text-align: center; padding: 20px; }
+  .forn-item { padding: 12px 0; border-bottom: 1px solid #eef0f5; }
+  .forn-item:last-child { border-bottom: none; }
+  .forn-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .forn-nome { font-size: 14px; font-weight: 700; color: var(--navy-dark); word-break: break-word; }
+  .forn-meta { font-size: 12px; color: #6b7488; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .forn-meta b { color: var(--navy-dark); }
   html, body { overflow-x: hidden; }
   @media (max-width: 700px) {
     header { flex-wrap: wrap; padding: 12px 16px; gap: 10px; }
@@ -113,6 +119,11 @@
   <div class="box">
     <div class="docas" id="grafico-docas"></div>
   </div>
+
+  <p class="panel-title">Por fornecedor</p>
+  <div class="box">
+    <div id="lista-fornecedores"></div>
+  </div>
 </main>
 <script>
 function formatarDuracao(seg) {
@@ -139,6 +150,7 @@ async function carregar() {
   document.getElementById("v-atendidos").textContent = d.atendidos_hoje;
   document.getElementById("v-espera").textContent = formatarDuracao(d.espera_media_hoje_seg);
   document.getElementById("v-total").textContent = d.total_historico;
+  renderFornecedores(d.por_fornecedor || []);
 
   const grafico = document.getElementById("grafico-dias");
   grafico.innerHTML = "";
@@ -187,6 +199,44 @@ async function carregar() {
       col.append(nome, fundo, qtd);
       docasEl.appendChild(col);
     }
+  }
+}
+
+function renderFornecedores(lista) {
+  const el = document.getElementById("lista-fornecedores");
+  el.innerHTML = "";
+  if (lista.length === 0) {
+    el.innerHTML = '<p class="vazio">Nenhum fornecedor registrado ainda.</p>';
+    return;
+  }
+  const max = Math.max(...lista.map((x) => x.n), 1);
+  for (const f of lista) {
+    const item = document.createElement("div");
+    item.className = "forn-item";
+
+    const topo = document.createElement("div");
+    topo.className = "forn-topo";
+    const nome = document.createElement("span");
+    nome.className = "forn-nome";
+    nome.textContent = f.fornecedor;
+    const meta = document.createElement("span");
+    meta.className = "forn-meta";
+    const b1 = document.createElement("b");
+    b1.textContent = f.n;
+    const b2 = document.createElement("b");
+    b2.textContent = formatarDuracao(f.espera_media_seg);
+    meta.append(b1, " chegada(s) · espera media ", b2);
+    topo.append(nome, meta);
+
+    const fundo = document.createElement("div");
+    fundo.className = "doca-barra-fundo";
+    const pre = document.createElement("div");
+    pre.className = "doca-barra-preenchida";
+    pre.style.width = (f.n / max) * 100 + "%";
+    fundo.appendChild(pre);
+
+    item.append(topo, fundo);
+    el.appendChild(item);
   }
 }
 

@@ -147,6 +147,7 @@
     <h1>Entrar na fila da doca</h1>
     <input type="text" id="nome" placeholder="Seu nome" />
     <input type="text" id="carga" placeholder="ID da carga" />
+    <input type="text" id="fornecedor" placeholder="Fornecedor" autocomplete="organization" />
     <button onclick="entrarNaFila()">Entrar na fila</button>
   </div>
 
@@ -179,11 +180,12 @@ function mostrarTela(id) {
 async function entrarNaFila() {
   const nome = document.getElementById("nome").value.trim();
   const carga = document.getElementById("carga").value.trim();
-  if (!nome || !carga) { alert("Preencha nome e ID da carga"); return; }
+  const fornecedor = document.getElementById("fornecedor").value.trim();
+  if (!nome || !carga || !fornecedor) { alert("Preencha nome, ID da carga e fornecedor"); return; }
   const res = await fetch("/api/motoristas", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nome, carga }),
+    body: JSON.stringify({ nome, carga, fornecedor }),
   });
   const data = await res.json();
   motoristaId = data.id;
@@ -305,6 +307,7 @@ function resetarParaNovaEntrada() {
   document.getElementById("body").classList.remove("chamado");
   document.getElementById("nome").value = "";
   document.getElementById("carga").value = "";
+  document.getElementById("fornecedor").value = "";
   mostrarTela("form-entrada");
 }
 

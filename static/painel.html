@@ -118,7 +118,7 @@
   <p class="panel-title">Fila de motoristas</p>
   <table>
     <thead>
-      <tr><th>Motorista</th><th>ID da carga</th><th>Status</th><th>Doca</th><th>Espera</th><th>Acao</th></tr>
+      <tr><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Status</th><th>Doca</th><th>Espera</th><th>Acao</th></tr>
     </thead>
     <tbody id="tbody"></tbody>
   </table>
@@ -136,7 +136,7 @@
   <p class="panel-title">Historico</p>
   <table>
     <thead>
-      <tr><th>Motorista</th><th>ID da carga</th><th>Doca</th><th>Espera</th><th>Finalizado</th></tr>
+      <tr><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Doca</th><th>Espera</th><th>Finalizado</th></tr>
     </thead>
     <tbody id="tbody-historico"></tbody>
   </table>
@@ -191,6 +191,9 @@ async function carregar() {
     const tdCarga = document.createElement("td");
     tdCarga.textContent = m.carga;
 
+    const tdFornecedor = document.createElement("td");
+    tdFornecedor.textContent = m.fornecedor || "-";
+
     const tdStatus = document.createElement("td");
     const span = document.createElement("span");
     span.className = "status status-" + m.status;
@@ -231,8 +234,8 @@ async function carregar() {
     }
 
     tdAcao.appendChild(wrap);
-    tr.append(tdNome, tdCarga, tdStatus, tdDoca, tdEspera, tdAcao);
-    rotular(tr, ["Motorista", "ID da carga", "Status", "Doca", "Espera", ""]);
+    tr.append(tdNome, tdCarga, tdFornecedor, tdStatus, tdDoca, tdEspera, tdAcao);
+    rotular(tr, ["Motorista", "ID da carga", "Fornecedor", "Status", "Doca", "Espera", ""]);
     tbody.appendChild(tr);
   }
 }
@@ -255,6 +258,9 @@ async function carregarHistorico() {
     const tdCarga = document.createElement("td");
     tdCarga.textContent = m.carga;
 
+    const tdFornecedor = document.createElement("td");
+    tdFornecedor.textContent = m.fornecedor || "-";
+
     const tdDoca = document.createElement("td");
     tdDoca.textContent = m.doca || "-";
 
@@ -265,8 +271,8 @@ async function carregarHistorico() {
     const tdFinalizado = document.createElement("td");
     tdFinalizado.textContent = m.finalizado_em ? new Date(m.finalizado_em).toLocaleString("pt-BR") : "-";
 
-    tr.append(tdNome, tdCarga, tdDoca, tdEspera, tdFinalizado);
-    rotular(tr, ["Motorista", "ID da carga", "Doca", "Espera", "Finalizado"]);
+    tr.append(tdNome, tdCarga, tdFornecedor, tdDoca, tdEspera, tdFinalizado);
+    rotular(tr, ["Motorista", "ID da carga", "Fornecedor", "Doca", "Espera", "Finalizado"]);
     tbody.appendChild(tr);
   }
 }

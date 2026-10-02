@@ -4,3 +4,4 @@ doca.db
 server_out.log
 server_err.log
 qrcode_motorista.png
+qr_*.png

@@ -174,9 +174,12 @@ function esperaDe(m) {
   return formatarDuracao(fim - inicio);
 }
 
+const docaEscolhida = {};
+
 async function carregar() {
   const res = await apiFetch("/api/motoristas");
   const motoristas = await res.json();
+  if (document.activeElement && document.activeElement.tagName === "SELECT") return;
   const tbody = document.getElementById("tbody");
   const empty = document.getElementById("empty");
   tbody.innerHTML = "";
@@ -219,6 +222,8 @@ async function carregar() {
         opt.textContent = "Doca " + doca;
         select.appendChild(opt);
       }
+      select.value = docaEscolhida[m.id] || "A";
+      select.addEventListener("change", () => { docaEscolhida[m.id] = select.value; });
       const btn = document.createElement("button");
       btn.className = "btn-chamar";
       btn.textContent = "Chamar";

@@ -239,13 +239,18 @@ def registrar(payload: RegistroPayload, request: Request):
     return {"ok": True}
 
 
-@app.post("/api/motoristas")
-def criar_motorista(payload: NovoMotorista):
-    nome = payload.nome.strip()
+def normalizar_motorista(payload: NovoMotorista):
+    nome = " ".join(payload.nome.split())
     carga = payload.carga.strip().upper()
     fornecedor = " ".join(payload.fornecedor.split()).upper()
     if not nome or not carga or not fornecedor:
         raise HTTPException(400, "Nome, ID da carga e fornecedor sao obrigatorios")
+    return nome, carga, fornecedor
+
+
+@app.post("/api/motoristas")
+def criar_motorista(payload: NovoMotorista):
+    nome, carga, fornecedor = normalizar_motorista(payload)
     with get_db() as conn:
         row = conn.execute(
             "INSERT INTO motoristas (nome, carga, fornecedor, status, criado_em) VALUES (%s, %s, %s, 'aguardando', %s) RETURNING id",
@@ -416,6 +421,28 @@ def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
             existe = conn.execute("SELECT 1 FROM motoristas WHERE id = %s", (motorista_id,)).fetchone()
             if not existe:
                 raise HTTPException(404, "Motorista nao encontrado")
+        return {"ok": True}
+
+
+@app.put("/api/motoristas/{motorista_id}")
+def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depends(exigir_login_api)):
+    nome, carga, fornecedor = normalizar_motorista(payload)
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s WHERE id = %s",
+            (nome, carga, fornecedor, motorista_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Motorista nao encontrado")
+        return {"ok": True}
+
+
+@app.delete("/api/motoristas/{motorista_id}")
+def remover_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM motoristas WHERE id = %s", (motorista_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Motorista nao encontrado")
         return {"ok": True}
 
 

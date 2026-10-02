@@ -34,7 +34,7 @@ from pywebpush import WebPushException, webpush
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 DOCAS_VALIDAS = {"A", "B"}
@@ -51,7 +51,10 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 CODIGO_CADASTRO = os.environ["CODIGO_CADASTRO"]
 
 app = FastAPI(title="Chamada de Doca")
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax")
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax", https_only=True)
+
+TZ = "America/Sao_Paulo"
+INICIO_DO_DIA = f"(date_trunc('day', now() AT TIME ZONE '{TZ}') AT TIME ZONE '{TZ}')"
 
 
 def logado(request: Request) -> bool:
@@ -140,9 +143,9 @@ init_db()
 
 
 class NovoMotorista(BaseModel):
-    nome: str
-    carga: str
-    fornecedor: str
+    nome: str = Field(max_length=100)
+    carga: str = Field(max_length=50)
+    fornecedor: str = Field(max_length=100)
 
 
 class ChamarPayload(BaseModel):
@@ -154,14 +157,14 @@ class SubscriptionPayload(BaseModel):
 
 
 class LoginPayload(BaseModel):
-    usuario: str
-    senha: str
+    usuario: str = Field(max_length=50)
+    senha: str = Field(max_length=200)
 
 
 class RegistroPayload(BaseModel):
-    usuario: str
-    senha: str
-    codigo: str
+    usuario: str = Field(max_length=50)
+    senha: str = Field(max_length=200)
+    codigo: str = Field(max_length=100)
 
 
 def enviar_push(motorista_id: int, titulo: str, corpo: str):
@@ -180,8 +183,9 @@ def enviar_push(motorista_id: int, titulo: str, corpo: str):
             data=json.dumps({"title": titulo, "body": corpo}),
             vapid_private_key=VAPID_PRIVATE_KEY,
             vapid_claims={"sub": VAPID_CLAIM_EMAIL},
+            timeout=10,
         )
-    except WebPushException:
+    except Exception:
         pass
 
 
@@ -297,16 +301,16 @@ def dashboard_dados(_: None = Depends(exigir_login_api)):
         atendidos_hoje = conn.execute(
             """
             SELECT COUNT(*) AS n FROM motoristas
-            WHERE status = 'finalizado' AND finalizado_em >= date_trunc('day', now())
-            """
+            WHERE status = 'finalizado' AND finalizado_em >= {INICIO_DO_DIA}
+            """.replace("{INICIO_DO_DIA}", INICIO_DO_DIA)
         ).fetchone()["n"]
 
         espera_media_hoje = conn.execute(
             """
             SELECT AVG(EXTRACT(EPOCH FROM (chamado_em - criado_em))) AS media
             FROM motoristas
-            WHERE chamado_em IS NOT NULL AND chamado_em >= date_trunc('day', now())
-            """
+            WHERE chamado_em IS NOT NULL AND chamado_em >= {INICIO_DO_DIA}
+            """.replace("{INICIO_DO_DIA}", INICIO_DO_DIA)
         ).fetchone()["media"]
 
         total_historico = conn.execute(
@@ -334,17 +338,17 @@ def dashboard_dados(_: None = Depends(exigir_login_api)):
 
         ultimos_dias = conn.execute(
             """
-            SELECT to_char(date_trunc('day', criado_em), 'YYYY-MM-DD') AS dia, COUNT(*) AS n
+            SELECT to_char(criado_em AT TIME ZONE '{TZ}', 'YYYY-MM-DD') AS dia, COUNT(*) AS n
             FROM motoristas
-            WHERE criado_em >= now() - interval '7 days'
+            WHERE criado_em >= {INICIO_DO_DIA} - interval '6 days'
             GROUP BY dia ORDER BY dia
-            """
+            """.replace("{TZ}", TZ).replace("{INICIO_DO_DIA}", INICIO_DO_DIA)
         ).fetchall()
 
     return {
         "fila_atual": fila_atual,
         "atendidos_hoje": atendidos_hoje,
-        "espera_media_hoje_seg": round(espera_media_hoje) if espera_media_hoje else None,
+        "espera_media_hoje_seg": round(espera_media_hoje) if espera_media_hoje is not None else None,
         "total_historico": total_historico,
         "por_doca": por_doca,
         "por_fornecedor": [
@@ -373,11 +377,14 @@ def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depend
         raise HTTPException(400, "Doca deve ser A ou B")
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET status = 'chamado', doca = %s, chamado_em = %s WHERE id = %s",
+            "UPDATE motoristas SET status = 'chamado', doca = %s, chamado_em = %s WHERE id = %s AND status = 'aguardando'",
             (doca, datetime.now(timezone.utc), motorista_id),
         )
         if cur.rowcount == 0:
-            raise HTTPException(404, "Motorista nao encontrado")
+            existe = conn.execute("SELECT 1 FROM motoristas WHERE id = %s", (motorista_id,)).fetchone()
+            if not existe:
+                raise HTTPException(404, "Motorista nao encontrado")
+            raise HTTPException(409, "Motorista ja foi chamado")
     enviar_push(motorista_id, "Va para a doca", f"Doca {doca} - dirija-se ate la agora.")
     return {"ok": True}
 
@@ -386,10 +393,15 @@ def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depend
 def motorista_chegou(motorista_id: int):
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET status = 'na_doca' WHERE id = %s", (motorista_id,)
+            "UPDATE motoristas SET status = 'na_doca' WHERE id = %s AND status = 'chamado'",
+            (motorista_id,),
         )
         if cur.rowcount == 0:
-            raise HTTPException(404, "Motorista nao encontrado")
+            row = conn.execute("SELECT status FROM motoristas WHERE id = %s", (motorista_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, "Motorista nao encontrado")
+            if row["status"] != "na_doca":
+                raise HTTPException(409, "Motorista ainda nao foi chamado")
         return {"ok": True}
 
 
@@ -397,11 +409,13 @@ def motorista_chegou(motorista_id: int):
 def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET status = 'finalizado', finalizado_em = %s WHERE id = %s",
+            "UPDATE motoristas SET status = 'finalizado', finalizado_em = %s WHERE id = %s AND status != 'finalizado'",
             (datetime.now(timezone.utc), motorista_id),
         )
         if cur.rowcount == 0:
-            raise HTTPException(404, "Motorista nao encontrado")
+            existe = conn.execute("SELECT 1 FROM motoristas WHERE id = %s", (motorista_id,)).fetchone()
+            if not existe:
+                raise HTTPException(404, "Motorista nao encontrado")
         return {"ok": True}
 
 

@@ -81,7 +81,7 @@ async function registrar() {
     window.location.href = "/";
   } else {
     const data = await res.json().catch(() => ({}));
-    erro.textContent = data.detail || "Nao foi possivel criar o acesso.";
+    erro.textContent = typeof data.detail === "string" ? data.detail : "Nao foi possivel criar o acesso. Confira os dados.";
   }
 }
 </script>

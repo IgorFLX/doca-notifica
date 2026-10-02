@@ -175,11 +175,13 @@ function esperaDe(m) {
 }
 
 const docaEscolhida = {};
+let seletorEmUsoAte = 0;
 
 async function carregar() {
   const res = await apiFetch("/api/motoristas");
   const motoristas = await res.json();
-  if (document.activeElement && document.activeElement.tagName === "SELECT") return;
+  const emUso = document.activeElement && document.activeElement.tagName === "SELECT";
+  if (emUso && Date.now() < seletorEmUsoAte) return;
   const tbody = document.getElementById("tbody");
   const empty = document.getElementById("empty");
   tbody.innerHTML = "";
@@ -223,11 +225,15 @@ async function carregar() {
         select.appendChild(opt);
       }
       select.value = docaEscolhida[m.id] || "A";
-      select.addEventListener("change", () => { docaEscolhida[m.id] = select.value; });
+      select.addEventListener("focus", () => { seletorEmUsoAte = Date.now() + 8000; });
+      select.addEventListener("change", () => {
+        docaEscolhida[m.id] = select.value;
+        seletorEmUsoAte = Date.now() + 8000;
+      });
       const btn = document.createElement("button");
       btn.className = "btn-chamar";
       btn.textContent = "Chamar";
-      btn.onclick = () => chamar(m.id, select.value);
+      btn.onclick = () => chamar(m.id, select.value, btn);
       wrap.appendChild(select);
       wrap.appendChild(btn);
     } else {
@@ -282,17 +288,22 @@ async function carregarHistorico() {
   }
 }
 
-async function chamar(id, doca) {
-  await apiFetch(`/api/motoristas/${id}/chamar`, {
+async function chamar(id, doca, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Chamando..."; }
+  seletorEmUsoAte = 0;
+  const res = await apiFetch(`/api/motoristas/${id}/chamar`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ doca }),
   });
+  if (!res.ok && res.status !== 409) alert("Nao foi possivel chamar o motorista. Tente novamente.");
+  delete docaEscolhida[id];
   carregar();
 }
 
 async function finalizar(id) {
-  await apiFetch(`/api/motoristas/${id}/finalizar`, { method: "POST" });
+  const res = await apiFetch(`/api/motoristas/${id}/finalizar`, { method: "POST" });
+  if (!res.ok) alert("Nao foi possivel finalizar. Tente novamente.");
   carregar();
   carregarHistorico();
 }

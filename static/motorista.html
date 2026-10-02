@@ -148,7 +148,7 @@
     <input type="text" id="nome" placeholder="Seu nome" />
     <input type="text" id="carga" placeholder="ID da carga" />
     <input type="text" id="fornecedor" placeholder="Fornecedor" autocomplete="organization" />
-    <button onclick="entrarNaFila()">Entrar na fila</button>
+    <button id="btn-entrar" onclick="entrarNaFila()">Entrar na fila</button>
   </div>
 
   <div id="tela-espera" class="hidden">
@@ -182,16 +182,41 @@ async function entrarNaFila() {
   const carga = document.getElementById("carga").value.trim();
   const fornecedor = document.getElementById("fornecedor").value.trim();
   if (!nome || !carga || !fornecedor) { alert("Preencha nome, ID da carga e fornecedor"); return; }
-  const res = await fetch("/api/motoristas", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nome, carga, fornecedor }),
-  });
-  const data = await res.json();
-  motoristaId = data.id;
-  localStorage.setItem("motoristaId", motoristaId);
-  ativarNotificacoes();
-  iniciarEspera();
+  if (enviandoEntrada) return;
+  enviandoEntrada = true;
+  const btn = document.getElementById("btn-entrar");
+  btn.disabled = true;
+  btn.textContent = "Entrando...";
+  desbloquearAudio();
+  try {
+    const res = await fetch("/api/motoristas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome, carga, fornecedor }),
+    });
+    if (!res.ok) throw new Error("status " + res.status);
+    const data = await res.json();
+    motoristaId = data.id;
+    localStorage.setItem("motoristaId", motoristaId);
+    ativarNotificacoes();
+    iniciarEspera();
+  } catch (e) {
+    alert("Nao foi possivel entrar na fila. Verifique sua conexao e tente novamente.");
+  } finally {
+    enviandoEntrada = false;
+    btn.disabled = false;
+    btn.textContent = "Entrar na fila";
+  }
+}
+
+let enviandoEntrada = false;
+let audioCtx = null;
+
+function desbloquearAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch (e) {}
 }
 
 async function ativarNotificacoes() {
@@ -239,15 +264,19 @@ function iniciarEspera() {
 async function verificarStatus() {
   if (!motoristaId) return;
   const idConsultado = motoristaId;
-  const res = await fetch(`/api/motoristas/${idConsultado}`);
-  if (motoristaId !== idConsultado) return;
-  if (!res.ok) {
-    localStorage.removeItem("motoristaId");
-    motoristaId = null;
-    clearInterval(polling);
-    mostrarTela("form-entrada");
+  let res;
+  try {
+    res = await fetch(`/api/motoristas/${idConsultado}`);
+  } catch (e) {
     return;
   }
+  if (motoristaId !== idConsultado) return;
+  if (res.status === 404) {
+    clearInterval(polling);
+    resetarParaNovaEntrada();
+    return;
+  }
+  if (!res.ok) return;
   const m = await res.json();
   if (motoristaId !== idConsultado) return;
   if (m.status === "chamado" || m.status === "na_doca") {
@@ -279,7 +308,8 @@ async function cheguei() {
   btn.disabled = true;
   btn.textContent = "Confirmando...";
   try {
-    await fetch(`/api/motoristas/${motoristaId}/cheguei`, { method: "POST" });
+    const res = await fetch(`/api/motoristas/${motoristaId}/cheguei`, { method: "POST" });
+    if (!res.ok) throw new Error("status " + res.status);
     btn.classList.add("hidden");
     document.getElementById("confirmado-texto").classList.remove("hidden");
     agendarReset();
@@ -317,7 +347,8 @@ function vibrar() {
 
 function tocarBip() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    desbloquearAudio();
+    const ctx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     const tocarTom = (tempoInicio) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();

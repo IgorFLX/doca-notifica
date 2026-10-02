@@ -169,6 +169,8 @@
 
 <script>
 let motoristaId = localStorage.getItem("motoristaId");
+let motoristaToken = localStorage.getItem("motoristaToken");
+const headersMotorista = () => ({ "X-Token": motoristaToken || "" });
 let polling = null;
 let jaTocou = false;
 
@@ -197,7 +199,9 @@ async function entrarNaFila() {
     if (!res.ok) throw new Error("status " + res.status);
     const data = await res.json();
     motoristaId = data.id;
+    motoristaToken = data.token;
     localStorage.setItem("motoristaId", motoristaId);
+    localStorage.setItem("motoristaToken", motoristaToken);
     ativarNotificacoes();
     iniciarEspera();
   } catch (e) {
@@ -240,7 +244,7 @@ async function ativarNotificacoes() {
 
     await fetch(`/api/motoristas/${motoristaId}/subscribe`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headersMotorista() },
       body: JSON.stringify({ subscription: subscription.toJSON() }),
     });
   } catch (e) {
@@ -258,7 +262,7 @@ function urlBase64ToUint8Array(base64String) {
 function iniciarEspera() {
   mostrarTela("tela-espera");
   verificarStatus();
-  polling = setInterval(verificarStatus, 2000);
+  polling = setInterval(verificarStatus, 4000);
 }
 
 async function verificarStatus() {
@@ -266,7 +270,7 @@ async function verificarStatus() {
   const idConsultado = motoristaId;
   let res;
   try {
-    res = await fetch(`/api/motoristas/${idConsultado}`);
+    res = await fetch(`/api/motoristas/${idConsultado}`, { headers: headersMotorista() });
   } catch (e) {
     return;
   }
@@ -308,7 +312,7 @@ async function cheguei() {
   btn.disabled = true;
   btn.textContent = "Confirmando...";
   try {
-    const res = await fetch(`/api/motoristas/${motoristaId}/cheguei`, { method: "POST" });
+    const res = await fetch(`/api/motoristas/${motoristaId}/cheguei`, { method: "POST", headers: headersMotorista() });
     if (!res.ok) throw new Error("status " + res.status);
     btn.classList.add("hidden");
     document.getElementById("confirmado-texto").classList.remove("hidden");
@@ -332,7 +336,9 @@ function resetarParaNovaEntrada() {
   resetAgendado = false;
   clearInterval(polling);
   localStorage.removeItem("motoristaId");
+  localStorage.removeItem("motoristaToken");
   motoristaId = null;
+  motoristaToken = null;
   jaTocou = false;
   document.getElementById("body").classList.remove("chamado");
   document.getElementById("nome").value = "";
@@ -383,6 +389,11 @@ function fecharAvisoIos() {
 
 if (ehIosFromHomeScreenPendente() && !localStorage.getItem("avisoIosFechado")) {
   document.getElementById("aviso-ios").classList.remove("hidden");
+}
+
+if (motoristaId && !motoristaToken) {
+  localStorage.removeItem("motoristaId");
+  motoristaId = null;
 }
 
 if (motoristaId) {

@@ -32,7 +32,10 @@
     text-decoration: none;
   }
   .btn-sair:hover, .nav-link:hover { background: rgba(255,255,255,.2); }
-  main { max-width: 960px; margin: 28px auto; padding: 0 20px; }
+  main { max-width: 1760px; margin: 28px auto; padding: 0 32px; }
+  .topo { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+  .topo > aside { position: sticky; top: 16px; }
+  @media (max-width: 1100px) { .topo { grid-template-columns: 1fr; } .topo > aside { position: static; } }
   .panel-title { font-size: 14px; font-weight: 600; color: #46516b; text-transform: uppercase; letter-spacing: .04em; margin: 24px 0 10px 4px; }
   .panel-title:first-of-type { margin-top: 0; }
   .espera { font-variant-numeric: tabular-nums; color: #33405e; font-weight: 600; }
@@ -67,10 +70,10 @@
   .empty { padding: 36px; text-align: center; color: #8891a8; background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(16,24,60,.08); }
   .refresh-note { font-size: 12px; color: #8891a8; margin: 10px 0 0 4px; }
   .qr-box {
-    margin-top: 28px; background: #fff; border-radius: 12px; padding: 20px;
+    flex-direction: column; text-align: center; margin-top: 0; background: #fff; border-radius: 12px; padding: 20px;
     box-shadow: 0 2px 10px rgba(16,24,60,.08); display: flex; align-items: center; gap: 18px;
   }
-  .qr-box img { width: 110px; height: 110px; display: block; border-radius: 8px; }
+  .qr-box img { width: 190px; height: 190px; display: block; border-radius: 8px; }
   .qr-box div p { margin: 0 0 6px; font-size: 13px; color: #444; }
   .qr-box code { font-size: 12px; background: #f1f3f8; padding: 3px 8px; border-radius: 6px; color: var(--navy); word-break: break-all; }
   html, body { overflow-x: hidden; }
@@ -138,6 +141,8 @@
   <button class="btn-sair" onclick="sair()">Sair</button>
 </header>
 <main>
+  <div class="topo">
+  <section>
   <p class="panel-title">Fila de motoristas</p>
   <table>
     <thead>
@@ -147,7 +152,10 @@
   </table>
   <div class="empty" id="empty" style="display:none">Nenhum motorista na fila.</div>
   <p class="refresh-note">Atualiza automaticamente a cada 3s.</p>
+  </section>
 
+  <aside>
+  <p class="panel-title">Entrada de motoristas</p>
   <div class="qr-box">
     <img src="/qrcode" alt="QR Code para o motorista entrar na fila" />
     <div>
@@ -155,8 +163,10 @@
       <code id="link-motorista"></code>
     </div>
   </div>
+  </aside>
+  </div>
 
-  <p class="panel-title">Historico</p>
+  <p class="panel-title" style="margin-top:30px">Historico</p>
   <table>
     <thead>
       <tr><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Doca</th><th>Espera</th><th>Finalizado</th><th></th></tr>

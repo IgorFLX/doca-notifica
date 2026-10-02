@@ -23,6 +23,8 @@ import io
 import json
 import os
 import secrets
+import time
+from collections import defaultdict, deque
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,8 +32,9 @@ from pathlib import Path
 import psycopg
 import qrcode
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 from pywebpush import WebPushException, webpush
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import indicadores
@@ -51,6 +54,8 @@ VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "mailto:admin@example.co
 SECRET_KEY = os.environ["SECRET_KEY"]
 CODIGO_CADASTRO = os.environ["CODIGO_CADASTRO"]
 
+NO_CACHE = {"Cache-Control": "no-cache"}
+
 app = FastAPI(title="Chamada de Doca")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax", https_only=True)
 
@@ -61,6 +66,37 @@ def logado(request: Request) -> bool:
 def exigir_login_api(request: Request):
     if not logado(request):
         raise HTTPException(401, "Nao autenticado")
+
+
+TENTATIVAS = defaultdict(deque)
+JANELA_SEG = 600
+MAX_FALHAS = 8
+
+
+def _ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for", "")
+    return xff.split(",")[0].strip() or (request.client.host if request.client else "?")
+
+
+def checar_limite(*chaves: str):
+    agora = time.monotonic()
+    for chave in chaves:
+        fila = TENTATIVAS[chave]
+        while fila and agora - fila[0] > JANELA_SEG:
+            fila.popleft()
+        if len(fila) >= MAX_FALHAS:
+            raise HTTPException(429, "Muitas tentativas. Aguarde alguns minutos e tente de novo.")
+
+
+def registrar_falha(*chaves: str):
+    agora = time.monotonic()
+    for chave in chaves:
+        TENTATIVAS[chave].append(agora)
+
+
+def limpar_falhas(*chaves: str):
+    for chave in chaves:
+        TENTATIVAS.pop(chave, None)
 
 
 def gerar_hash_senha(senha: str) -> str:
@@ -77,14 +113,20 @@ def verificar_senha(senha: str, hash_salvo: str) -> bool:
     return hmac.compare_digest(hash_calculado, hash_esperado)
 
 
+pool = ConnectionPool(
+    DATABASE_URL,
+    min_size=1,
+    max_size=15,
+    kwargs={"row_factory": dict_row},
+    check=ConnectionPool.check_connection,
+    open=True,
+)
+
+
 @contextmanager
 def get_db():
-    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
-    try:
+    with pool.connection() as conn:
         yield conn
-        conn.commit()
-    finally:
-        conn.close()
 
 
 def init_db():
@@ -142,6 +184,8 @@ def init_db():
             conn.execute("ALTER TABLE motoristas ADD COLUMN fornecedor TEXT")
         if "finalizado_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN finalizado_em TIMESTAMPTZ")
+        if "token" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN token TEXT")
         if "chegou_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN chegou_em TIMESTAMPTZ")
         if "removido_em" not in colunas:
@@ -206,12 +250,16 @@ def vapid_public_key():
 @app.post("/api/login")
 def login(payload: LoginPayload, request: Request):
     usuario = payload.usuario.strip().lower()
+    chaves = (f"ip:{_ip(request)}", f"u:{usuario}")
+    checar_limite(*chaves)
     with get_db() as conn:
         row = conn.execute(
             "SELECT senha_hash FROM usuarios WHERE usuario = %s", (usuario,)
         ).fetchone()
     if not row or not verificar_senha(payload.senha, row["senha_hash"]):
+        registrar_falha(*chaves)
         raise HTTPException(401, "Usuario ou senha invalidos")
+    limpar_falhas(*chaves)
     request.session["auth"] = True
     request.session["usuario"] = usuario
     return {"ok": True}
@@ -227,7 +275,10 @@ def logout(request: Request):
 def registrar(payload: RegistroPayload, request: Request):
     usuario = payload.usuario.strip().lower()
     senha = payload.senha
+    chave = f"reg:{_ip(request)}"
+    checar_limite(chave)
     if not hmac.compare_digest(payload.codigo.encode(), CODIGO_CADASTRO.encode()):
+        registrar_falha(chave)
         raise HTTPException(401, "Codigo de cadastro invalido")
     if len(usuario) < 3:
         raise HTTPException(400, "Usuario deve ter pelo menos 3 caracteres")
@@ -248,6 +299,23 @@ def registrar(payload: RegistroPayload, request: Request):
     return {"ok": True}
 
 
+def motorista_do_token(conn, motorista_id: int, token):
+    row = None
+    if token:
+        row = conn.execute(
+            "SELECT * FROM motoristas WHERE id = %s AND removido_em IS NULL AND token = %s",
+            (motorista_id, token),
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "Motorista nao encontrado")
+    return row
+
+
+def limpar(row):
+    row.pop("token", None)
+    return row
+
+
 def normalizar_motorista(payload: NovoMotorista):
     nome = " ".join(payload.nome.split())
     carga = payload.carga.strip().upper()
@@ -260,22 +328,19 @@ def normalizar_motorista(payload: NovoMotorista):
 @app.post("/api/motoristas")
 def criar_motorista(payload: NovoMotorista):
     nome, carga, fornecedor = normalizar_motorista(payload)
+    token = secrets.token_urlsafe(16)
     with get_db() as conn:
         row = conn.execute(
-            "INSERT INTO motoristas (nome, carga, fornecedor, status, criado_em) VALUES (%s, %s, %s, 'aguardando', %s) RETURNING id",
-            (nome, carga, fornecedor, datetime.now(timezone.utc)),
+            "INSERT INTO motoristas (nome, carga, fornecedor, status, criado_em, token) VALUES (%s, %s, %s, 'aguardando', %s, %s) RETURNING id",
+            (nome, carga, fornecedor, datetime.now(timezone.utc), token),
         ).fetchone()
-        return {"id": row["id"]}
+        return {"id": row["id"], "token": token}
 
 
 @app.post("/api/motoristas/{motorista_id}/subscribe")
-def salvar_subscription(motorista_id: int, payload: SubscriptionPayload):
+def salvar_subscription(motorista_id: int, payload: SubscriptionPayload, x_token: str | None = Header(default=None)):
     with get_db() as conn:
-        existe = conn.execute(
-            "SELECT id FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)
-        ).fetchone()
-        if not existe:
-            raise HTTPException(404, "Motorista nao encontrado")
+        motorista_do_token(conn, motorista_id, x_token)
         conn.execute(
             """
             INSERT INTO push_subscriptions (motorista_id, subscription)
@@ -293,7 +358,7 @@ def listar_motoristas(_: None = Depends(exigir_login_api)):
         rows = conn.execute(
             "SELECT * FROM motoristas WHERE status != 'finalizado' AND removido_em IS NULL ORDER BY criado_em ASC"
         ).fetchall()
-        return rows
+        return [limpar(r) for r in rows]
 
 
 @app.get("/api/motoristas/historico")
@@ -302,7 +367,7 @@ def historico_motoristas(_: None = Depends(exigir_login_api)):
         rows = conn.execute(
             "SELECT * FROM motoristas WHERE status = 'finalizado' AND removido_em IS NULL ORDER BY criado_em DESC LIMIT 200"
         ).fetchall()
-        return rows
+        return [limpar(r) for r in rows]
 
 
 class MetaPayload(BaseModel):
@@ -341,14 +406,9 @@ def exportar_csv(periodo: str = "hoje", _: None = Depends(exigir_login_api)):
 
 
 @app.get("/api/motoristas/{motorista_id}")
-def status_motorista(motorista_id: int):
+def status_motorista(motorista_id: int, x_token: str | None = Header(default=None)):
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)
-        ).fetchone()
-        if not row:
-            raise HTTPException(404, "Motorista nao encontrado")
-        return row
+        return limpar(motorista_do_token(conn, motorista_id, x_token))
 
 
 @app.post("/api/motoristas/{motorista_id}/chamar")
@@ -371,8 +431,9 @@ def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depend
 
 
 @app.post("/api/motoristas/{motorista_id}/cheguei")
-def motorista_chegou(motorista_id: int):
+def motorista_chegou(motorista_id: int, x_token: str | None = Header(default=None)):
     with get_db() as conn:
+        motorista_do_token(conn, motorista_id, x_token)
         cur = conn.execute(
             "UPDATE motoristas SET status = 'na_doca', chegou_em = %s WHERE id = %s AND status = 'chamado' AND removido_em IS NULL",
             (datetime.now(timezone.utc), motorista_id),
@@ -429,33 +490,33 @@ def remover_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
 def painel(request: Request):
     if not logado(request):
         return RedirectResponse("/login")
-    return FileResponse(BASE_DIR / "static" / "painel.html")
+    return FileResponse(BASE_DIR / "static" / "painel.html", headers=NO_CACHE)
 
 
 @app.get("/dashboard")
 def dashboard_page(request: Request):
     if not logado(request):
         return RedirectResponse("/login")
-    return FileResponse(BASE_DIR / "static" / "dashboard.html")
+    return FileResponse(BASE_DIR / "static" / "dashboard.html", headers=NO_CACHE)
 
 
 @app.get("/login")
 def login_page(request: Request):
     if logado(request):
         return RedirectResponse("/")
-    return FileResponse(BASE_DIR / "static" / "login.html")
+    return FileResponse(BASE_DIR / "static" / "login.html", headers=NO_CACHE)
 
 
 @app.get("/registrar")
 def registrar_page(request: Request):
     if logado(request):
         return RedirectResponse("/")
-    return FileResponse(BASE_DIR / "static" / "registrar.html")
+    return FileResponse(BASE_DIR / "static" / "registrar.html", headers=NO_CACHE)
 
 
 @app.get("/motorista")
 def motorista_page():
-    return FileResponse(BASE_DIR / "static" / "motorista.html")
+    return FileResponse(BASE_DIR / "static" / "motorista.html", headers=NO_CACHE)
 
 
 @app.get("/sw.js")

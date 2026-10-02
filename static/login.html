@@ -76,7 +76,8 @@ async function entrar() {
   if (res.ok) {
     window.location.href = "/";
   } else {
-    erro.textContent = "Usuario ou senha invalidos.";
+    const data = await res.json().catch(() => ({}));
+    erro.textContent = res.status === 429 && typeof data.detail === "string" ? data.detail : "Usuario ou senha invalidos.";
   }
 }
 

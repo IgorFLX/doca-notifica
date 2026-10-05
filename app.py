@@ -528,6 +528,21 @@ def motorista_chegou(motorista_id: int, x_token: str | None = Header(default=Non
         return {"ok": True}
 
 
+@app.post("/api/motoristas/{motorista_id}/saindo")
+def motorista_saindo(motorista_id: int, x_token: str | None = Header(default=None)):
+    with get_db() as conn:
+        row = motorista_do_token(conn, motorista_id, x_token)
+        if row["status"] == "finalizado":
+            return {"ok": True}
+        if row["status"] != "na_doca":
+            raise HTTPException(409, "Motorista ainda nao chegou na doca")
+        conn.execute(
+            "UPDATE motoristas SET status = 'finalizado', finalizado_em = %s WHERE id = %s AND status = 'na_doca'",
+            (datetime.now(timezone.utc), motorista_id),
+        )
+    return {"ok": True}
+
+
 @app.post("/api/motoristas/{motorista_id}/finalizar")
 def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
     with get_db() as conn:

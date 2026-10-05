@@ -173,10 +173,12 @@
   </div>
 
   <div id="tela-chamado" class="hidden">
-    <h1>VA PARA A DOCA</h1>
+    <h1 id="titulo-chamado">VA PARA A DOCA</h1>
     <div class="doca-numero" id="doca-numero">-</div>
     <button class="btn-cheguei" id="btn-cheguei" onclick="cheguei()">Cheguei na doca</button>
-    <p class="confirmado hidden" id="confirmado-texto">Chegada registrada! Aguarde o operador.</p>
+    <p class="confirmado hidden" id="confirmado-texto">Chegada registrada! Quando terminar, toque no botao abaixo ao sair da doca.</p>
+    <button class="btn-cheguei hidden" id="btn-saindo" onclick="saindo()">Estou saindo da doca</button>
+    <p class="confirmado hidden" id="saiu-texto">Saida registrada. Obrigado e boa viagem!</p>
   </div>
 
   </div>
@@ -313,15 +315,22 @@ async function verificarStatus() {
     mostrarTela("tela-chamado");
     const btn = document.getElementById("btn-cheguei");
     const texto = document.getElementById("confirmado-texto");
+    const btnSaindo = document.getElementById("btn-saindo");
     if (m.status === "na_doca") {
+      document.getElementById("titulo-chamado").textContent = "VOCE ESTA NA DOCA";
       btn.classList.add("hidden");
-      texto.classList.remove("hidden");
-      agendarReset();
+      if (!saindoEmAndamento) {
+        texto.classList.remove("hidden");
+        btnSaindo.classList.remove("hidden");
+      }
     } else {
+      document.getElementById("titulo-chamado").textContent = "VA PARA A DOCA";
       btn.classList.remove("hidden");
       btn.disabled = false;
       btn.textContent = "Cheguei na doca";
       texto.classList.add("hidden");
+      btnSaindo.classList.add("hidden");
+      document.getElementById("saiu-texto").classList.add("hidden");
     }
     if (!jaTocou) { jaTocou = true; tocarBip(); vibrar(); }
   } else if (m.status === "finalizado") {
@@ -339,12 +348,37 @@ async function cheguei() {
     const res = await fetch(`/api/motoristas/${motoristaId}/cheguei`, { method: "POST", headers: headersMotorista() });
     if (!res.ok) throw new Error("status " + res.status);
     btn.classList.add("hidden");
+    document.getElementById("titulo-chamado").textContent = "VOCE ESTA NA DOCA";
     document.getElementById("confirmado-texto").classList.remove("hidden");
-    agendarReset();
+    document.getElementById("btn-saindo").classList.remove("hidden");
   } catch (e) {
     btn.disabled = false;
     btn.textContent = "Cheguei na doca";
     alert("Nao foi possivel confirmar, tente novamente.");
+  }
+}
+
+let saindoEmAndamento = false;
+
+async function saindo() {
+  if (!motoristaId || saindoEmAndamento) return;
+  saindoEmAndamento = true;
+  const btn = document.getElementById("btn-saindo");
+  btn.disabled = true;
+  btn.textContent = "Registrando...";
+  try {
+    const res = await fetch(`/api/motoristas/${motoristaId}/saindo`, { method: "POST", headers: headersMotorista() });
+    if (!res.ok) throw new Error("status " + res.status);
+    btn.classList.add("hidden");
+    document.getElementById("confirmado-texto").classList.add("hidden");
+    document.getElementById("saiu-texto").classList.remove("hidden");
+    document.getElementById("titulo-chamado").textContent = "ATE LOGO!";
+    agendarReset();
+  } catch (e) {
+    saindoEmAndamento = false;
+    btn.disabled = false;
+    btn.textContent = "Estou saindo da doca";
+    alert("Nao foi possivel registrar a saida, tente novamente.");
   }
 }
 
@@ -358,6 +392,12 @@ function agendarReset() {
 
 function resetarParaNovaEntrada() {
   resetAgendado = false;
+  saindoEmAndamento = false;
+  const bs = document.getElementById("btn-saindo");
+  bs.disabled = false;
+  bs.textContent = "Estou saindo da doca";
+  bs.classList.add("hidden");
+  document.getElementById("saiu-texto").classList.add("hidden");
   clearInterval(polling);
   localStorage.removeItem("motoristaId");
   localStorage.removeItem("motoristaToken");

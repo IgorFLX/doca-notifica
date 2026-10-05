@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Painel da Doca</title>
 <link rel="icon" type="image/png" href="/static/favicon.png" />
+<link rel="manifest" href="/manifest-painel.json" />
+<meta name="theme-color" content="#0f2347" />
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Painel Doca" />
 <style>
   :root {
     color-scheme: light;
@@ -182,6 +189,7 @@
 <header>
   <span class="logo"><img src="/static/logo-dsv.webp" alt="DSV" /></span>
   <h1>Painel da Doca &mdash; Chamada de Motoristas</h1>
+  <button class="nav-link" id="btn-instalar" hidden>Instalar app</button>
   <button class="nav-link" id="btn-avisos" onclick="alternarAvisos()">Ativar avisos</button>
   <a class="nav-link" href="/dashboard">Dashboard</a>
   <button class="btn-sair" onclick="sair()">Sair</button>
@@ -437,6 +445,21 @@ async function alternarAvisos() {
   else if (typeof Notification !== "undefined" && Notification.permission === "denied") atualizarBotaoAvisos("negado");
   else atualizarBotaoAvisos("desligado");
 })();
+
+let promptInstalar = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  promptInstalar = e;
+  document.getElementById("btn-instalar").hidden = false;
+});
+window.addEventListener("appinstalled", () => { document.getElementById("btn-instalar").hidden = true; promptInstalar = null; });
+document.getElementById("btn-instalar").onclick = async () => {
+  if (!promptInstalar) return;
+  promptInstalar.prompt();
+  await promptInstalar.userChoice;
+  promptInstalar = null;
+  document.getElementById("btn-instalar").hidden = true;
+};
 
 const docaEscolhida = {};
 let seletorEmUsoAte = 0;

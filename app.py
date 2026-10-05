@@ -615,6 +615,16 @@ def motorista_page():
     return FileResponse(BASE_DIR / "static" / "motorista.html", headers=NO_CACHE)
 
 
+@app.get("/manifest-motorista.json")
+def manifest_motorista():
+    return FileResponse(BASE_DIR / "static" / "manifest-motorista.json", media_type="application/manifest+json", headers=NO_CACHE)
+
+
+@app.get("/manifest-painel.json")
+def manifest_painel():
+    return FileResponse(BASE_DIR / "static" / "manifest-painel.json", media_type="application/manifest+json", headers=NO_CACHE)
+
+
 @app.get("/sw.js")
 def service_worker():
     return FileResponse(BASE_DIR / "static" / "sw.js", media_type="application/javascript", headers=NO_CACHE)

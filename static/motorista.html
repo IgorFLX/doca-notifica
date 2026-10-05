@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Aguardando Doca</title>
 <link rel="icon" type="image/png" href="/static/favicon.png" />
+<link rel="manifest" href="/manifest-motorista.json" />
+<meta name="theme-color" content="#0f2347" />
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="DSV Motorista" />
 <style>
   :root {
     color-scheme: light;
@@ -107,6 +114,10 @@
   .btn-cheguei:disabled { opacity: .6; cursor: default; }
   .confirmado { color: #fff; margin-top: 14px; font-size: 14px; }
   .hidden { display: none; }
+  .btn-instalar {
+    width: 100%; margin-bottom: 14px; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 700;
+    background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.35); backdrop-filter: blur(8px);
+  }
   .aviso-ios {
     position: relative; z-index: 1; width: 100%; box-sizing: border-box;
     background: #fff7e6; border: 1.5px solid #f5c76a; color: #7a5200;
@@ -145,6 +156,7 @@
 </div>
 <div class="wrap">
   <div class="logo-box"><span><img src="/static/logo-dsv.webp" alt="DSV" /></span></div>
+  <button type="button" class="btn-instalar hidden" id="btn-instalar">Instalar o app DSV Motorista</button>
   <div class="aviso-ios hidden" id="aviso-ios">
     <button class="fechar-aviso" onclick="fecharAvisoIos()" aria-label="Fechar aviso">&times;</button>
     <strong>Para receber o aviso sem precisar ficar com a tela aberta:</strong>
@@ -230,6 +242,21 @@ async function entrarNaFila() {
     btn.textContent = "Entrar na fila";
   }
 }
+
+let promptInstalar = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  promptInstalar = e;
+  document.getElementById("btn-instalar").classList.remove("hidden");
+});
+window.addEventListener("appinstalled", () => { document.getElementById("btn-instalar").classList.add("hidden"); promptInstalar = null; });
+document.getElementById("btn-instalar").onclick = async () => {
+  if (!promptInstalar) return;
+  promptInstalar.prompt();
+  await promptInstalar.userChoice;
+  promptInstalar = null;
+  document.getElementById("btn-instalar").classList.add("hidden");
+};
 
 let enviandoEntrada = false;
 let tipoEscolhido = null;

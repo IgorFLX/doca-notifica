@@ -34,7 +34,7 @@ import qrcode
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from pywebpush import WebPushException, webpush
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import indicadores
@@ -168,6 +168,16 @@ def init_db():
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS operador_subscriptions (
+                endpoint TEXT PRIMARY KEY,
+                subscription JSONB NOT NULL,
+                usuario TEXT,
+                criado_em TIMESTAMPTZ NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS configuracoes (
                 chave TEXT PRIMARY KEY,
                 valor TEXT NOT NULL
@@ -225,6 +235,16 @@ class RegistroPayload(BaseModel):
     codigo: str = Field(max_length=100)
 
 
+def _enviar(subscription, payload: dict):
+    webpush(
+        subscription_info=subscription,
+        data=json.dumps(payload),
+        vapid_private_key=VAPID_PRIVATE_KEY,
+        vapid_claims={"sub": VAPID_CLAIM_EMAIL},
+        timeout=10,
+    )
+
+
 def enviar_push(motorista_id: int, titulo: str, corpo: str):
     if not VAPID_PRIVATE_KEY:
         return
@@ -236,20 +256,71 @@ def enviar_push(motorista_id: int, titulo: str, corpo: str):
     if not row:
         return
     try:
-        webpush(
-            subscription_info=row["subscription"],
-            data=json.dumps({"title": titulo, "body": corpo}),
-            vapid_private_key=VAPID_PRIVATE_KEY,
-            vapid_claims={"sub": VAPID_CLAIM_EMAIL},
-            timeout=10,
-        )
+        _enviar(row["subscription"], {"title": titulo, "body": corpo, "url": "/motorista", "tag": "chamada-doca"})
     except Exception:
         pass
+
+
+def notificar_operadores(titulo: str, corpo: str, tipo: str = "operador", tag: str = "novo-motorista"):
+    if not VAPID_PRIVATE_KEY:
+        return
+    with get_db() as conn:
+        subs = conn.execute("SELECT endpoint, subscription FROM operador_subscriptions").fetchall()
+    for sub in subs:
+        try:
+            _enviar(sub["subscription"], {"title": titulo, "body": corpo, "url": "/", "tag": tag, "tipo": tipo})
+        except WebPushException as e:
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            if status in (404, 410):
+                with get_db() as conn:
+                    conn.execute("DELETE FROM operador_subscriptions WHERE endpoint = %s", (sub["endpoint"],))
+        except Exception:
+            pass
 
 
 @app.get("/api/vapid-public-key")
 def vapid_public_key():
     return {"publicKey": VAPID_PUBLIC_KEY}
+
+
+class OperadorSubscription(BaseModel):
+    subscription: dict
+
+
+@app.post("/api/operador/subscribe")
+def operador_subscribe(payload: OperadorSubscription, request: Request, _: None = Depends(exigir_login_api)):
+    endpoint = str(payload.subscription.get("endpoint", ""))
+    if not endpoint.startswith("https://"):
+        raise HTTPException(400, "Subscription invalida")
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO operador_subscriptions (endpoint, subscription, usuario, criado_em)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (endpoint) DO UPDATE SET subscription = EXCLUDED.subscription, usuario = EXCLUDED.usuario
+            """,
+            (endpoint, json.dumps(payload.subscription), request.session.get("usuario"), datetime.now(timezone.utc)),
+        )
+    return {"ok": True}
+
+
+@app.post("/api/operador/unsubscribe")
+def operador_unsubscribe(payload: OperadorSubscription, _: None = Depends(exigir_login_api)):
+    with get_db() as conn:
+        conn.execute("DELETE FROM operador_subscriptions WHERE endpoint = %s", (str(payload.subscription.get("endpoint", "")),))
+    return {"ok": True}
+
+
+@app.post("/api/operador/testar")
+def operador_testar(background: BackgroundTasks, _: None = Depends(exigir_login_api)):
+    background.add_task(
+        notificar_operadores,
+        "Avisos ativados",
+        "Voce sera avisado aqui quando chegar um novo motorista.",
+        "teste",
+        "teste-aviso",
+    )
+    return {"ok": True}
 
 
 @app.post("/api/login")
@@ -334,7 +405,7 @@ def normalizar_motorista(payload: NovoMotorista):
 
 
 @app.post("/api/motoristas")
-def criar_motorista(payload: NovoMotorista):
+def criar_motorista(payload: NovoMotorista, background: BackgroundTasks):
     nome, carga, fornecedor, tipo = normalizar_motorista(payload)
     token = secrets.token_urlsafe(16)
     with get_db() as conn:
@@ -342,7 +413,9 @@ def criar_motorista(payload: NovoMotorista):
             "INSERT INTO motoristas (nome, carga, fornecedor, tipo, status, criado_em, token) VALUES (%s, %s, %s, %s, 'aguardando', %s, %s) RETURNING id",
             (nome, carga, fornecedor, tipo, datetime.now(timezone.utc), token),
         ).fetchone()
-        return {"id": row["id"], "token": token}
+    rotulo = "Coleta" if tipo == "COLETA" else "Descarga"
+    background.add_task(notificar_operadores, "Novo motorista na fila", f"{nome} - carga {carga} - {fornecedor} ({rotulo})")
+    return {"id": row["id"], "token": token}
 
 
 @app.post("/api/motoristas/{motorista_id}/subscribe")
@@ -529,7 +602,7 @@ def motorista_page():
 
 @app.get("/sw.js")
 def service_worker():
-    return FileResponse(BASE_DIR / "static" / "sw.js", media_type="application/javascript")
+    return FileResponse(BASE_DIR / "static" / "sw.js", media_type="application/javascript", headers=NO_CACHE)
 
 
 @app.get("/qrcode")

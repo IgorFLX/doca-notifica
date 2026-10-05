@@ -81,6 +81,20 @@
     .qr-box img { width: 120px; height: 120px; }
   }
   html, body { overflow-x: hidden; }
+  #btn-avisos.ligado { background: rgba(22,163,74,.35); border-color: rgba(134,239,172,.7); }
+  #btn-avisos.negado { background: rgba(220,38,38,.3); border-color: rgba(252,165,165,.7); }
+  #btn-avisos.chama { animation: chamar 1.6s ease-in-out infinite; }
+  @keyframes chamar { 0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,.55); } 50% { box-shadow: 0 0 0 7px rgba(255,255,255,0); } }
+  #toasts { position: fixed; top: 76px; right: 20px; z-index: 50; display: flex; flex-direction: column; gap: 10px; width: min(360px, calc(100vw - 32px)); }
+  .toast {
+    background: #fff; border-left: 5px solid #1d3a8f; border-radius: 10px; padding: 12px 14px;
+    box-shadow: 0 10px 30px rgba(10,22,56,.28); animation: entrar .25s ease both; cursor: pointer;
+  }
+  .toast b { display: block; color: var(--navy-dark); font-size: 14px; margin-bottom: 3px; }
+  .toast span { font-size: 13px; color: #46516b; }
+  @keyframes entrar { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+  tr.linha-nova td { animation: pisca 1.2s ease-in-out 6; }
+  @keyframes pisca { 0%,100% { background: transparent; } 50% { background: #fff4cc; } }
   .row-actions { flex-wrap: wrap; }
   .row-sec { display: flex; gap: 6px; }
   .btn-sec {
@@ -145,6 +159,7 @@
 <header>
   <span class="logo"><img src="/static/logo-dsv.webp" alt="DSV" /></span>
   <h1>Painel da Doca &mdash; Chamada de Motoristas</h1>
+  <button class="nav-link" id="btn-avisos" onclick="alternarAvisos()">Ativar avisos</button>
   <a class="nav-link" href="/dashboard">Dashboard</a>
   <button class="btn-sair" onclick="sair()">Sair</button>
 </header>
@@ -183,6 +198,7 @@
   </table>
   <div class="empty" id="empty-historico" style="display:none">Nenhum registro no historico ainda.</div>
 </main>
+<div id="toasts" aria-live="polite"></div>
 <dialog id="dlg-editar">
   <h2>Editar motorista</h2>
   <p class="ed-erro" id="ed-erro"></p>
@@ -242,12 +258,170 @@ function esperaDe(m) {
   return formatarDuracao(fim - inicio);
 }
 
+const TITULO_BASE = document.title;
+let idsConhecidos = null;
+const destacar = new Set();
+let pendentes = 0;
+let audioCtx = null;
+let avisosEstado = "desligado";
+
+function desbloquearAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch (e) {}
+}
+["click", "keydown", "touchstart"].forEach((ev) => document.addEventListener(ev, desbloquearAudio, { passive: true }));
+
+function bipNovo() {
+  try {
+    desbloquearAudio();
+    if (!audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    [660, 880].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.25, t0 + i * 0.22);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + i * 0.22 + 0.2);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(t0 + i * 0.22);
+      osc.stop(t0 + i * 0.22 + 0.21);
+    });
+  } catch (e) {}
+}
+
+function mostrarToast(titulo, texto) {
+  const box = document.getElementById("toasts");
+  const t = document.createElement("div");
+  t.className = "toast";
+  const b = document.createElement("b");
+  b.textContent = titulo;
+  const sp = document.createElement("span");
+  sp.textContent = texto;
+  t.append(b, sp);
+  t.onclick = () => t.remove();
+  box.appendChild(t);
+  setTimeout(() => t.remove(), 12000);
+}
+
+function atualizarTitulo() {
+  document.title = pendentes > 0 ? `(${pendentes}) Novo motorista - ${TITULO_BASE}` : TITULO_BASE;
+}
+
+function limparPendentes() {
+  if (document.visibilityState !== "visible" || !document.hasFocus()) return;
+  pendentes = 0;
+  atualizarTitulo();
+}
+window.addEventListener("focus", limparPendentes);
+document.addEventListener("visibilitychange", limparPendentes);
+
+function detectarNovos(lista) {
+  if (idsConhecidos === null) {
+    idsConhecidos = new Set(lista.map((m) => m.id));
+    return;
+  }
+  const novos = lista.filter((m) => !idsConhecidos.has(m.id));
+  novos.forEach((m) => idsConhecidos.add(m.id));
+  if (!novos.length) return;
+  bipNovo();
+  for (const m of novos) {
+    destacar.add(m.id);
+    setTimeout(() => destacar.delete(m.id), 20000);
+    mostrarToast("Novo motorista na fila", `${m.nome} - carga ${m.carga} - ${m.fornecedor || "sem fornecedor"} (${rotuloTipo(m.tipo)})`);
+  }
+  if (document.visibilityState !== "visible" || !document.hasFocus()) {
+    pendentes += novos.length;
+    atualizarTitulo();
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+function atualizarBotaoAvisos(estado) {
+  avisosEstado = estado;
+  const b = document.getElementById("btn-avisos");
+  b.classList.remove("ligado", "negado", "chama");
+  b.hidden = false;
+  if (estado === "ligado") { b.textContent = "Avisos ligados"; b.classList.add("ligado"); }
+  else if (estado === "negado") { b.textContent = "Avisos bloqueados"; b.classList.add("negado"); }
+  else if (estado === "indisponivel") { b.hidden = true; }
+  else { b.textContent = "Ativar avisos"; b.classList.add("chama"); }
+}
+
+async function sincronizarAvisos(pedirPermissao) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || typeof Notification === "undefined") {
+    atualizarBotaoAvisos("indisponivel");
+    return false;
+  }
+  if (pedirPermissao && Notification.permission === "default") await Notification.requestPermission();
+  if (Notification.permission === "denied") { atualizarBotaoAvisos("negado"); return false; }
+  if (Notification.permission !== "granted") { atualizarBotaoAvisos("desligado"); return false; }
+  try {
+    const reg = await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
+    const { publicKey } = await (await fetch("/api/vapid-public-key")).json();
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+    const r = await apiFetch("/api/operador/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    atualizarBotaoAvisos(r.ok ? "ligado" : "desligado");
+    return r.ok;
+  } catch (e) {
+    console.error("Avisos indisponiveis", e);
+    atualizarBotaoAvisos("desligado");
+    return false;
+  }
+}
+
+async function alternarAvisos() {
+  desbloquearAudio();
+  if (avisosEstado === "negado") {
+    alert('As notificacoes estao bloqueadas para este site. Clique no cadeado ao lado do endereco, libere "Notificacoes" e recarregue a pagina.');
+    return;
+  }
+  if (avisosEstado === "ligado") {
+    const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+    const sub = reg && (await reg.pushManager.getSubscription());
+    if (sub) await apiFetch("/api/operador/unsubscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: sub.toJSON() }) });
+    try { localStorage.setItem("avisosOperador", "0"); } catch (e) {}
+    atualizarBotaoAvisos("desligado");
+    return;
+  }
+  const ok = await sincronizarAvisos(true);
+  if (ok) {
+    try { localStorage.setItem("avisosOperador", "1"); } catch (e) {}
+    mostrarToast("Avisos ativados", "Voce recebera uma notificacao quando chegar um novo motorista, mesmo em outra aba ou programa.");
+    await apiFetch("/api/operador/testar", { method: "POST" });
+  }
+}
+
+(function iniciarAvisos() {
+  let pref = null;
+  try { pref = localStorage.getItem("avisosOperador"); } catch (e) {}
+  if (pref === "1") sincronizarAvisos(false);
+  else if (typeof Notification !== "undefined" && Notification.permission === "denied") atualizarBotaoAvisos("negado");
+  else atualizarBotaoAvisos("desligado");
+})();
+
 const docaEscolhida = {};
 let seletorEmUsoAte = 0;
 
 async function carregar() {
   const res = await apiFetch("/api/motoristas");
   const motoristas = await res.json();
+  detectarNovos(motoristas);
   const emUso = document.activeElement && document.activeElement.tagName === "SELECT";
   if (emUso && Date.now() < seletorEmUsoAte) return;
   const tbody = document.getElementById("tbody");
@@ -257,6 +431,7 @@ async function carregar() {
 
   for (const m of motoristas) {
     const tr = document.createElement("tr");
+    if (destacar.has(m.id)) tr.classList.add("linha-nova");
 
     const tdNome = document.createElement("td");
     tdNome.textContent = m.nome;

@@ -76,6 +76,10 @@
   .qr-box img { width: 190px; height: 190px; display: block; border-radius: 8px; }
   .qr-box div p { margin: 0 0 6px; font-size: 13px; color: #444; }
   .qr-box code { font-size: 12px; background: #f1f3f8; padding: 3px 8px; border-radius: 6px; color: var(--navy); word-break: break-all; }
+  @media (max-width: 1400px) {
+    .qr-box { flex-direction: row; text-align: left; margin-top: 18px; width: fit-content; max-width: 100%; }
+    .qr-box img { width: 120px; height: 120px; }
+  }
   html, body { overflow-x: hidden; }
   .row-actions { flex-wrap: wrap; }
   .row-sec { display: flex; gap: 6px; }

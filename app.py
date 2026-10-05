@@ -41,7 +41,8 @@ import indicadores
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
-DOCAS_VALIDAS = {"A", "B"}
+DOCAS_VALIDAS = {"A1", "A2", "A3", "A4 EAD", "B1", "B2", "B3", "B4"}
+TIPOS_VALIDOS = {"COLETA", "DESCARGA"}
 
 BASE_DIR = Path(__file__).parent
 
@@ -138,6 +139,7 @@ def init_db():
                 nome TEXT NOT NULL,
                 carga TEXT NOT NULL,
                 fornecedor TEXT,
+                tipo TEXT,
                 status TEXT NOT NULL DEFAULT 'aguardando',
                 doca TEXT,
                 criado_em TIMESTAMPTZ NOT NULL,
@@ -184,6 +186,8 @@ def init_db():
             conn.execute("ALTER TABLE motoristas ADD COLUMN fornecedor TEXT")
         if "finalizado_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN finalizado_em TIMESTAMPTZ")
+        if "tipo" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN tipo TEXT")
         if "token" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN token TEXT")
         if "chegou_em" not in colunas:
@@ -199,6 +203,7 @@ class NovoMotorista(BaseModel):
     nome: str = Field(max_length=100)
     carga: str = Field(max_length=50)
     fornecedor: str = Field(max_length=100)
+    tipo: str = Field(max_length=20)
 
 
 class ChamarPayload(BaseModel):
@@ -320,19 +325,22 @@ def normalizar_motorista(payload: NovoMotorista):
     nome = " ".join(payload.nome.split())
     carga = payload.carga.strip().upper()
     fornecedor = " ".join(payload.fornecedor.split()).upper()
+    tipo = payload.tipo.strip().upper()
     if not nome or not carga or not fornecedor:
         raise HTTPException(400, "Nome, ID da carga e fornecedor sao obrigatorios")
-    return nome, carga, fornecedor
+    if tipo not in TIPOS_VALIDOS:
+        raise HTTPException(400, "Tipo deve ser Coleta ou Descarga")
+    return nome, carga, fornecedor, tipo
 
 
 @app.post("/api/motoristas")
 def criar_motorista(payload: NovoMotorista):
-    nome, carga, fornecedor = normalizar_motorista(payload)
+    nome, carga, fornecedor, tipo = normalizar_motorista(payload)
     token = secrets.token_urlsafe(16)
     with get_db() as conn:
         row = conn.execute(
-            "INSERT INTO motoristas (nome, carga, fornecedor, status, criado_em, token) VALUES (%s, %s, %s, 'aguardando', %s, %s) RETURNING id",
-            (nome, carga, fornecedor, datetime.now(timezone.utc), token),
+            "INSERT INTO motoristas (nome, carga, fornecedor, tipo, status, criado_em, token) VALUES (%s, %s, %s, %s, 'aguardando', %s, %s) RETURNING id",
+            (nome, carga, fornecedor, tipo, datetime.now(timezone.utc), token),
         ).fetchone()
         return {"id": row["id"], "token": token}
 
@@ -413,9 +421,9 @@ def status_motorista(motorista_id: int, x_token: str | None = Header(default=Non
 
 @app.post("/api/motoristas/{motorista_id}/chamar")
 def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depends(exigir_login_api)):
-    doca = payload.doca.strip().upper()
+    doca = " ".join(payload.doca.split()).upper()
     if doca not in DOCAS_VALIDAS:
-        raise HTTPException(400, "Doca deve ser A ou B")
+        raise HTTPException(400, "Doca invalida")
     with get_db() as conn:
         cur = conn.execute(
             "UPDATE motoristas SET status = 'chamado', doca = %s, chamado_em = %s WHERE id = %s AND status = 'aguardando' AND removido_em IS NULL",
@@ -463,11 +471,11 @@ def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
 
 @app.put("/api/motoristas/{motorista_id}")
 def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depends(exigir_login_api)):
-    nome, carga, fornecedor = normalizar_motorista(payload)
+    nome, carga, fornecedor, tipo = normalizar_motorista(payload)
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s WHERE id = %s AND removido_em IS NULL",
-            (nome, carga, fornecedor, motorista_id),
+            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s, tipo = %s WHERE id = %s AND removido_em IS NULL",
+            (nome, carga, fornecedor, tipo, motorista_id),
         )
         if cur.rowcount == 0:
             raise HTTPException(404, "Motorista nao encontrado")

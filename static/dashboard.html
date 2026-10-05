@@ -161,6 +161,9 @@
       <p class="secao">Tempo por etapa</p>
       <div class="box" id="etapas"></div>
 
+      <p class="secao">Coleta x Descarga</p>
+      <div class="docas" id="tipos"></div>
+
       <p class="secao">Por fornecedor</p>
       <div class="box" id="fornecedores"></div>
     </div>
@@ -367,6 +370,27 @@ function renderDocas(d) {
   }
 }
 
+function renderTipos(d) {
+  const alvo = document.getElementById("tipos");
+  alvo.replaceChildren();
+  const total = d.por_tipo.reduce((t, x) => t + x.n, 0);
+  if (!d.por_tipo.length) { alvo.append(el("p", "vazio", "Sem registros no periodo.")); return; }
+  const nomes = { COLETA: "Coleta", DESCARGA: "Descarga", "NAO INFORMADO": "Nao informado" };
+  for (const x of d.por_tipo) {
+    const c = el("div", "card");
+    c.append(el("div", "doca-nome", nomes[x.tipo] || x.tipo));
+    const fundo = el("div", "fundo");
+    const p = el("div", "preenchido");
+    p.style.width = (total ? (x.n / total) * 100 : 0) + "%";
+    fundo.append(p);
+    c.append(fundo);
+    c.append(el("div", "doca-meta", `${x.n} motorista(s)${total ? " · " + Math.round((x.n / total) * 100) + "%" : ""}`));
+    c.append(el("div", "doca-meta", `Espera media: ${dur(x.espera_media)}`));
+    c.append(el("div", "doca-meta", `Atendimento medio: ${dur(x.atendimento_media)}`));
+    alvo.append(c);
+  }
+}
+
 function renderFornecedores(d) {
   const box = document.getElementById("fornecedores");
   box.replaceChildren();
@@ -406,6 +430,7 @@ async function carregar() {
   renderEtapas(d);
   renderGraficos(d);
   renderDocas(d);
+  renderTipos(d);
   renderFornecedores(d);
 }
 

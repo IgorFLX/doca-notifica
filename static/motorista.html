@@ -93,7 +93,15 @@
   }
   @keyframes pulso { 0%{ transform: scale(1); opacity: .7 } 50%{ transform: scale(1.15); opacity: 1 } 100%{ transform: scale(1); opacity: .7 } }
   .chamado .card { background: #16a34a; color: #fff; }
-  .doca-numero { font-size: 48px; font-weight: 800; margin: 10px 0; }
+  .doca-numero { font-size: 48px; font-weight: 800; margin: 10px 0; line-height: 1.1; }
+  .doca-numero.longo { font-size: 36px; }
+  .tipo-grupo { display: flex; gap: 10px; margin-bottom: 12px; }
+  .tipo-btn {
+    flex: 1; padding: 13px 8px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer;
+    background: #fff; color: var(--navy); border: 1.5px solid #dde1ea; transition: all .15s ease;
+  }
+  .tipo-btn:hover { opacity: 1; border-color: var(--navy-light); }
+  .tipo-btn.ativo { background: linear-gradient(135deg, var(--navy-light), var(--navy-dark)); color: #fff; border-color: transparent; }
   .btn-cheguei { background: #fff; color: #16a34a; margin-top: 16px; background-image: none; }
   .btn-cheguei:disabled { opacity: .6; cursor: default; }
   .confirmado { color: #fff; margin-top: 14px; font-size: 14px; }
@@ -123,6 +131,7 @@
     h1 { font-size: 17px; }
     input[type=text], button { font-size: 16px; }
     .doca-numero { font-size: 56px; }
+    .doca-numero.longo { font-size: 40px; }
   }
 </style>
 </head>
@@ -148,6 +157,10 @@
     <input type="text" id="nome" placeholder="Seu nome" />
     <input type="text" id="carga" placeholder="ID da carga" />
     <input type="text" id="fornecedor" placeholder="Fornecedor" autocomplete="organization" />
+    <div class="tipo-grupo" id="tipo-grupo" role="radiogroup" aria-label="Tipo da operacao">
+      <button type="button" class="tipo-btn" data-tipo="COLETA" onclick="escolherTipo('COLETA')">Coleta</button>
+      <button type="button" class="tipo-btn" data-tipo="DESCARGA" onclick="escolherTipo('DESCARGA')">Descarga</button>
+    </div>
     <button id="btn-entrar" onclick="entrarNaFila()">Entrar na fila</button>
   </div>
 
@@ -184,6 +197,7 @@ async function entrarNaFila() {
   const carga = document.getElementById("carga").value.trim();
   const fornecedor = document.getElementById("fornecedor").value.trim();
   if (!nome || !carga || !fornecedor) { alert("Preencha nome, ID da carga e fornecedor"); return; }
+  if (!tipoEscolhido) { alert("Escolha se e Coleta ou Descarga"); return; }
   if (enviandoEntrada) return;
   enviandoEntrada = true;
   const btn = document.getElementById("btn-entrar");
@@ -194,7 +208,7 @@ async function entrarNaFila() {
     const res = await fetch("/api/motoristas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, carga, fornecedor }),
+      body: JSON.stringify({ nome, carga, fornecedor, tipo: tipoEscolhido }),
     });
     if (!res.ok) throw new Error("status " + res.status);
     const data = await res.json();
@@ -214,6 +228,12 @@ async function entrarNaFila() {
 }
 
 let enviandoEntrada = false;
+let tipoEscolhido = null;
+
+function escolherTipo(t) {
+  tipoEscolhido = t;
+  document.querySelectorAll(".tipo-btn").forEach((b) => b.classList.toggle("ativo", b.dataset.tipo === t));
+}
 let audioCtx = null;
 
 function desbloquearAudio() {
@@ -284,7 +304,9 @@ async function verificarStatus() {
   const m = await res.json();
   if (motoristaId !== idConsultado) return;
   if (m.status === "chamado" || m.status === "na_doca") {
-    document.getElementById("doca-numero").textContent = m.doca || "-";
+    const docaEl = document.getElementById("doca-numero");
+    docaEl.textContent = m.doca || "-";
+    docaEl.classList.toggle("longo", (m.doca || "").length > 3);
     document.getElementById("body").classList.add("chamado");
     mostrarTela("tela-chamado");
     const btn = document.getElementById("btn-cheguei");
@@ -344,6 +366,8 @@ function resetarParaNovaEntrada() {
   document.getElementById("nome").value = "";
   document.getElementById("carga").value = "";
   document.getElementById("fornecedor").value = "";
+  tipoEscolhido = null;
+  document.querySelectorAll(".tipo-btn").forEach((b) => b.classList.remove("ativo"));
   mostrarTela("form-entrada");
 }
 

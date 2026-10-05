@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 TZ_NOME = "America/Sao_Paulo"
 TZ = ZoneInfo(TZ_NOME)
 META_PADRAO_MIN = 30
-DOCAS = ["A", "B"]
+DOCAS = ["A1", "A2", "A3", "A4 EAD", "B1", "B2", "B3", "B4"]
 PERIODOS = {"hoje": 1, "7d": 7, "30d": 30}
 
 ATIVO = "removido_em IS NULL"
@@ -176,14 +176,30 @@ def calcular_dashboard(conn, periodo: str) -> dict:
             (inicio, agora),
         ).fetchall()
     }
+    nomes_docas = DOCAS + sorted(d for d in docas_db if d not in DOCAS)
     por_doca = [
         {
             "doca": d,
             "n": docas_db[d]["n"] if d in docas_db else 0,
             "atendimento_media": _int(docas_db[d]["atend_media"]) if d in docas_db else None,
         }
-        for d in DOCAS
+        for d in nomes_docas
     ]
+
+    tipos = conn.execute(
+        f"""
+        SELECT COALESCE(tipo, 'NAO INFORMADO') AS tipo,
+               COUNT(*) AS n,
+               AVG(EXTRACT(EPOCH FROM (chamado_em - criado_em)))
+                   FILTER (WHERE chamado_em IS NOT NULL) AS espera_media,
+               AVG(EXTRACT(EPOCH FROM (finalizado_em - chegou_em)))
+                   FILTER (WHERE finalizado_em IS NOT NULL AND chegou_em IS NOT NULL) AS atend_media
+        FROM motoristas
+        WHERE {ATIVO} AND criado_em >= %s AND criado_em < %s
+        GROUP BY 1 ORDER BY n DESC, 1
+        """,
+        (inicio, agora),
+    ).fetchall()
 
     fornecedores = conn.execute(
         f"""
@@ -234,6 +250,10 @@ def calcular_dashboard(conn, periodo: str) -> dict:
         "por_hora": horas,
         "por_dia": por_dia,
         "por_doca": por_doca,
+        "por_tipo": [
+            {"tipo": t["tipo"], "n": t["n"], "espera_media": _int(t["espera_media"]), "atendimento_media": _int(t["atend_media"])}
+            for t in tipos
+        ],
         "por_fornecedor": [
             {
                 "fornecedor": f["fornecedor"],
@@ -278,13 +298,13 @@ def gerar_csv(conn, periodo: str) -> bytes:
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
     w.writerow([
-        "ID", "Motorista", "ID da carga", "Fornecedor", "Doca", "Status",
+        "ID", "Motorista", "ID da carga", "Fornecedor", "Tipo", "Doca", "Status",
         "Entrada", "Chamada", "Chegada na doca", "Finalizado",
         "Espera na fila (min)", "Deslocamento (min)", "Atendimento (min)", "Total (min)",
     ])
     for r in rows:
         w.writerow([
-            r["id"], _seguro(r["nome"]), _seguro(r["carga"]), _seguro(r["fornecedor"]), r["doca"] or "", r["status"],
+            r["id"], _seguro(r["nome"]), _seguro(r["carga"]), _seguro(r["fornecedor"]), r["tipo"] or "", r["doca"] or "", r["status"],
             _local(r["criado_em"]), _local(r["chamado_em"]), _local(r["chegou_em"]), _local(r["finalizado_em"]),
             _min(r["criado_em"], r["chamado_em"]), _min(r["chamado_em"], r["chegou_em"]),
             _min(r["chegou_em"], r["finalizado_em"]), _min(r["criado_em"], r["finalizado_em"]),

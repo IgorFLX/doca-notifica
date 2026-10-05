@@ -94,6 +94,10 @@
     display: block; width: 100%; margin-top: 4px; padding: 11px 12px; font-size: 16px;
     border: 1.5px solid #dde1ea; border-radius: 8px; font-family: inherit;
   }
+  dialog#dlg-editar select {
+    display: block; width: 100%; margin-top: 4px; padding: 11px 12px; font-size: 16px;
+    border: 1.5px solid #dde1ea; border-radius: 8px; font-family: inherit; background: #fff;
+  }
   dialog#dlg-editar input:focus { outline: none; border-color: var(--navy-light); }
   .ed-erro { color: #b91c1c; font-size: 13px; min-height: 16px; margin: 0 0 8px; }
   .ed-acoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
@@ -146,7 +150,7 @@
   <p class="panel-title">Fila de motoristas</p>
   <table>
     <thead>
-      <tr><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Status</th><th>Doca</th><th>Espera</th><th>Acao</th></tr>
+      <tr><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Tipo</th><th>Status</th><th>Doca</th><th>Espera</th><th>Acao</th></tr>
     </thead>
     <tbody id="tbody"></tbody>
   </table>
@@ -169,7 +173,7 @@
   <p class="panel-title" style="margin-top:30px">Historico</p>
   <table>
     <thead>
-      <tr><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Doca</th><th>Espera</th><th>Finalizado</th><th></th></tr>
+      <tr><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Tipo</th><th>Doca</th><th>Espera</th><th>Finalizado</th><th></th></tr>
     </thead>
     <tbody id="tbody-historico"></tbody>
   </table>
@@ -181,6 +185,13 @@
   <label>Nome<input type="text" id="ed-nome" maxlength="100" /></label>
   <label>ID da carga<input type="text" id="ed-carga" maxlength="50" /></label>
   <label>Fornecedor<input type="text" id="ed-fornecedor" maxlength="100" /></label>
+  <label>Tipo
+    <select id="ed-tipo">
+      <option value="">Selecione...</option>
+      <option value="COLETA">Coleta</option>
+      <option value="DESCARGA">Descarga</option>
+    </select>
+  </label>
   <div class="ed-acoes">
     <button class="btn-sec" onclick="fecharEdicao()">Cancelar</button>
     <button class="btn-chamar" id="ed-salvar" onclick="salvarEdicao()">Salvar</button>
@@ -196,6 +207,15 @@ async function apiFetch(url, options) {
     throw new Error("Nao autenticado");
   }
   return res;
+}
+
+const DOCAS = [
+  { grupo: "Docas A", itens: ["A1", "A2", "A3", "A4 EAD"] },
+  { grupo: "Docas B", itens: ["B1", "B2", "B3", "B4"] },
+];
+
+function rotuloTipo(t) {
+  return t === "COLETA" ? "Coleta" : t === "DESCARGA" ? "Descarga" : "-";
 }
 
 function rotular(tr, labels) {
@@ -243,6 +263,9 @@ async function carregar() {
     const tdFornecedor = document.createElement("td");
     tdFornecedor.textContent = m.fornecedor || "-";
 
+    const tdTipo = document.createElement("td");
+    tdTipo.textContent = rotuloTipo(m.tipo);
+
     const tdStatus = document.createElement("td");
     const span = document.createElement("span");
     span.className = "status status-" + m.status;
@@ -262,13 +285,18 @@ async function carregar() {
 
     if (m.status === "aguardando") {
       const select = document.createElement("select");
-      for (const doca of ["A", "B"]) {
-        const opt = document.createElement("option");
-        opt.value = doca;
-        opt.textContent = "Doca " + doca;
-        select.appendChild(opt);
+      for (const g of DOCAS) {
+        const og = document.createElement("optgroup");
+        og.label = g.grupo;
+        for (const doca of g.itens) {
+          const opt = document.createElement("option");
+          opt.value = doca;
+          opt.textContent = "Doca " + doca;
+          og.appendChild(opt);
+        }
+        select.appendChild(og);
       }
-      select.value = docaEscolhida[m.id] || "A";
+      select.value = docaEscolhida[m.id] || "A1";
       select.addEventListener("focus", () => { seletorEmUsoAte = Date.now() + 8000; });
       select.addEventListener("change", () => {
         docaEscolhida[m.id] = select.value;
@@ -290,8 +318,8 @@ async function carregar() {
 
     wrap.appendChild(botoesSecundarios(m));
     tdAcao.appendChild(wrap);
-    tr.append(tdNome, tdCarga, tdFornecedor, tdStatus, tdDoca, tdEspera, tdAcao);
-    rotular(tr, ["Motorista", "ID da carga", "Fornecedor", "Status", "Doca", "Espera", ""]);
+    tr.append(tdNome, tdCarga, tdFornecedor, tdTipo, tdStatus, tdDoca, tdEspera, tdAcao);
+    rotular(tr, ["Motorista", "ID da carga", "Fornecedor", "Tipo", "Status", "Doca", "Espera", ""]);
     tbody.appendChild(tr);
   }
 }
@@ -317,6 +345,9 @@ async function carregarHistorico() {
     const tdFornecedor = document.createElement("td");
     tdFornecedor.textContent = m.fornecedor || "-";
 
+    const tdTipoH = document.createElement("td");
+    tdTipoH.textContent = rotuloTipo(m.tipo);
+
     const tdDoca = document.createElement("td");
     tdDoca.textContent = m.doca || "-";
 
@@ -330,8 +361,8 @@ async function carregarHistorico() {
     const tdAcaoH = document.createElement("td");
     tdAcaoH.appendChild(botoesSecundarios(m));
 
-    tr.append(tdNome, tdCarga, tdFornecedor, tdDoca, tdEspera, tdFinalizado, tdAcaoH);
-    rotular(tr, ["Motorista", "ID da carga", "Fornecedor", "Doca", "Espera", "Finalizado", ""]);
+    tr.append(tdNome, tdCarga, tdFornecedor, tdTipoH, tdDoca, tdEspera, tdFinalizado, tdAcaoH);
+    rotular(tr, ["Motorista", "ID da carga", "Fornecedor", "Tipo", "Doca", "Espera", "Finalizado", ""]);
     tbody.appendChild(tr);
   }
 }
@@ -358,6 +389,7 @@ function abrirEdicao(m) {
   document.getElementById("ed-nome").value = m.nome || "";
   document.getElementById("ed-carga").value = m.carga || "";
   document.getElementById("ed-fornecedor").value = m.fornecedor || "";
+  document.getElementById("ed-tipo").value = m.tipo || "";
   document.getElementById("ed-erro").textContent = "";
   document.getElementById("dlg-editar").showModal();
 }
@@ -371,15 +403,16 @@ async function salvarEdicao() {
   const nome = document.getElementById("ed-nome").value.trim();
   const carga = document.getElementById("ed-carga").value.trim();
   const fornecedor = document.getElementById("ed-fornecedor").value.trim();
+  const tipo = document.getElementById("ed-tipo").value;
   const erro = document.getElementById("ed-erro");
-  if (!nome || !carga || !fornecedor) { erro.textContent = "Preencha todos os campos."; return; }
+  if (!nome || !carga || !fornecedor || !tipo) { erro.textContent = "Preencha todos os campos."; return; }
   const btn = document.getElementById("ed-salvar");
   btn.disabled = true;
   try {
     const res = await apiFetch(`/api/motoristas/${editandoId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, carga, fornecedor }),
+      body: JSON.stringify({ nome, carga, fornecedor, tipo }),
     });
     if (!res.ok) { erro.textContent = "Nao foi possivel salvar. Tente novamente."; return; }
     fecharEdicao();

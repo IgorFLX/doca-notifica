@@ -143,6 +143,29 @@
   .forn-meta b { color: var(--ink); font-weight: 600; }
   .tag-pouco { font-size: 10px; font-weight: 600; background: var(--g100); color: var(--g600); padding: 2px 7px; border-radius: 999px; margin-left: 8px; letter-spacing: .02em; }
 
+
+  /* ---- temas dos cartoes (Branco e o padrao acima) ---- */
+  body:is([data-cartoes="vidro"], [data-cartoes="preto"]) :is(.card, .box, .criticos) {
+    --ink: #fff; --g600: rgba(255,255,255,.66); --g400: rgba(255,255,255,.46);
+    --g300: rgba(255,255,255,.30); --g200: rgba(255,255,255,.16); --g100: rgba(255,255,255,.09);
+    --navy: #a9c6ff; color: #fff;
+  }
+  body[data-cartoes="vidro"] :is(.card, .box, .criticos) {
+    background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.20);
+    backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 10px 34px rgba(2,8,26,.35);
+  }
+  body[data-cartoes="preto"] :is(.card, .box, .criticos) {
+    background: #070b14; border: 1px solid rgba(255,255,255,.10); box-shadow: 0 10px 34px rgba(2,8,26,.45);
+  }
+  body:is([data-cartoes="vidro"], [data-cartoes="preto"]) .criticos { border-left: 4px solid #fff; }
+  body:is([data-cartoes="vidro"], [data-cartoes="preto"]) .card.alerta {
+    background: #fff; border-color: #fff; --ink: #0b0f1a; --g600: #4b5563; box-shadow: 0 10px 34px rgba(2,8,26,.45);
+  }
+  body:is([data-cartoes="vidro"], [data-cartoes="preto"]) .card.alerta .valor { color: #0b0f1a; }
+  body:is([data-cartoes="vidro"], [data-cartoes="preto"]) .card.alerta :is(.label, .sub) { color: #4b5563; opacity: 1; }
+  body:is([data-cartoes="vidro"], [data-cartoes="preto"]) .barras:not(.dias) .barra.pico { background: #fff; }
+  .seg + .seg { margin-left: 4px; }
   .cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0 28px; align-items: start; }
   @media (max-width: 1100px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 
@@ -177,6 +200,11 @@
       <button data-p="hoje">Hoje</button>
       <button data-p="7d">7 dias</button>
       <button data-p="30d">30 dias</button>
+    </div>
+    <div class="seg" id="seg-cartoes" title="Cor dos cartoes">
+      <button data-t="branco">Branco</button>
+      <button data-t="vidro">Vidro</button>
+      <button data-t="preto">Preto</button>
     </div>
     <span class="espaco"></span>
     <div class="meta-box">
@@ -222,6 +250,21 @@
 let periodo = "hoje";
 try { periodo = localStorage.getItem("periodoDash") || "hoje"; } catch (e) {}
 let metaMin = 30;
+
+let temaCartoes = "vidro";
+try { temaCartoes = localStorage.getItem("temaCartoes") || "vidro"; } catch (e) {}
+function aplicarTema() {
+  document.body.dataset.cartoes = temaCartoes;
+  document.querySelectorAll("#seg-cartoes button").forEach((b) => b.classList.toggle("ativo", b.dataset.t === temaCartoes));
+}
+document.querySelectorAll("#seg-cartoes button").forEach((b) => {
+  b.onclick = () => {
+    temaCartoes = b.dataset.t;
+    try { localStorage.setItem("temaCartoes", temaCartoes); } catch (e) {}
+    aplicarTema();
+  };
+});
+aplicarTema();
 
 const LABEL_ANTERIOR = { hoje: "ontem", "7d": "7 dias anteriores", "30d": "30 dias anteriores" };
 

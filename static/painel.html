@@ -249,7 +249,7 @@
   </div>
 </dialog>
 <script>
-const STATUS_LABEL = { aguardando: "Aguardando", chamado: "Chamado", na_doca: "Na doca" };
+const STATUS_LABEL = { aguardando: "Aguardando", chamado: "A caminho", na_doca: "Na doca" };
 
 async function apiFetch(url, options) {
   const res = await fetch(url, options);
@@ -349,6 +349,32 @@ function limparPendentes() {
 }
 window.addEventListener("focus", limparPendentes);
 document.addEventListener("visibilitychange", limparPendentes);
+
+let statusPorId = null;
+const acoesLocais = new Set();
+
+function detectarMudancas(lista) {
+  const atual = new Map(lista.map((m) => [m.id, m]));
+  if (statusPorId === null) { statusPorId = atual; return; }
+  for (const [id, antigo] of statusPorId) {
+    const novo = atual.get(id);
+    if (!novo) {
+      if (antigo.status === "na_doca" && !acoesLocais.has(id)) {
+        mostrarToast("Saiu da doca", `${antigo.nome} - doca ${antigo.doca || "-"}`);
+      }
+      acoesLocais.delete(id);
+      continue;
+    }
+    if (antigo.status === "chamado" && novo.status === "na_doca") {
+      destacar.add(id);
+      setTimeout(() => destacar.delete(id), 20000);
+      bipNovo();
+      mostrarToast("Chegou na doca", `${novo.nome} - doca ${novo.doca || "-"}`);
+      if (document.visibilityState !== "visible" || !document.hasFocus()) { pendentes += 1; atualizarTitulo(); }
+    }
+  }
+  statusPorId = atual;
+}
 
 function detectarNovos(lista) {
   if (idsConhecidos === null) {
@@ -468,6 +494,7 @@ async function carregar() {
   const res = await apiFetch("/api/motoristas");
   const motoristas = await res.json();
   detectarNovos(motoristas);
+  detectarMudancas(motoristas);
   const emUso = document.activeElement && document.activeElement.tagName === "SELECT";
   if (emUso && Date.now() < seletorEmUsoAte) return;
   const tbody = document.getElementById("tbody");
@@ -649,6 +676,7 @@ async function salvarEdicao() {
 }
 
 async function removerMotorista(m) {
+  acoesLocais.add(m.id);
   const msg = `Remover "${m.nome}" (carga ${m.carga})?\n\nEle sai da fila, do historico e dos indicadores. O registro fica guardado no banco de dados.`;
   if (!confirm(msg)) return;
   const res = await apiFetch(`/api/motoristas/${m.id}`, { method: "DELETE" });
@@ -672,6 +700,7 @@ async function chamar(id, doca, btn) {
 }
 
 async function finalizar(id) {
+  acoesLocais.add(id);
   const res = await apiFetch(`/api/motoristas/${id}/finalizar`, { method: "POST" });
   if (!res.ok) alert("Nao foi possivel finalizar. Tente novamente.");
   carregar();
@@ -684,6 +713,14 @@ async function sair() {
 }
 
 document.getElementById("link-motorista").textContent = window.location.origin + "/motorista";
+
+function atualizarAgora() { carregar().catch(() => {}); carregarHistorico().catch(() => {}); }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") atualizarAgora(); });
+window.addEventListener("focus", atualizarAgora);
+if (window.EventSource) {
+  const origem = new EventSource("/api/eventos");
+  origem.onmessage = () => atualizarAgora();
+}
 
 carregar();
 carregarHistorico();

@@ -17,6 +17,7 @@ Banco: Postgres (variavel de ambiente DATABASE_URL). Notificacoes push
 usam VAPID (variaveis VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_CLAIM_EMAIL).
 """
 
+import asyncio
 import hashlib
 import hmac
 import io
@@ -58,6 +59,14 @@ CODIGO_CADASTRO = os.environ["CODIGO_CADASTRO"]
 NO_CACHE = {"Cache-Control": "no-cache"}
 
 app = FastAPI(title="Chamada de Doca")
+VERSAO = {"n": 0}
+
+
+def sinalizar():
+    yield
+    VERSAO["n"] += 1
+
+
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax", https_only=True)
 
 def logado(request: Request) -> bool:
@@ -278,6 +287,34 @@ def notificar_operadores(titulo: str, corpo: str, tipo: str = "operador", tag: s
             pass
 
 
+@app.get("/api/eventos")
+async def eventos(request: Request, _: None = Depends(exigir_login_api)):
+    async def gerador():
+        ultimo = -1
+        ocioso = 0
+        limite = time.monotonic() + 600
+        while time.monotonic() < limite:
+            if await request.is_disconnected():
+                break
+            atual = VERSAO["n"]
+            if atual != ultimo:
+                ultimo = atual
+                ocioso = 0
+                yield f"data: {atual}\n\n"
+            else:
+                ocioso += 1
+                if ocioso >= 15:
+                    ocioso = 0
+                    yield ": ping\n\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        gerador(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.get("/api/vapid-public-key")
 def vapid_public_key():
     return {"publicKey": VAPID_PUBLIC_KEY}
@@ -405,7 +442,7 @@ def normalizar_motorista(payload: NovoMotorista):
 
 
 @app.post("/api/motoristas")
-def criar_motorista(payload: NovoMotorista, background: BackgroundTasks):
+def criar_motorista(payload: NovoMotorista, background: BackgroundTasks, _sig: None = Depends(sinalizar)):
     nome, carga, fornecedor, tipo = normalizar_motorista(payload)
     token = secrets.token_urlsafe(16)
     with get_db() as conn:
@@ -493,7 +530,7 @@ def status_motorista(motorista_id: int, x_token: str | None = Header(default=Non
 
 
 @app.post("/api/motoristas/{motorista_id}/chamar")
-def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depends(exigir_login_api)):
+def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
     doca = " ".join(payload.doca.split()).upper()
     if doca not in DOCAS_VALIDAS:
         raise HTTPException(400, "Doca invalida")
@@ -512,7 +549,7 @@ def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depend
 
 
 @app.post("/api/motoristas/{motorista_id}/cheguei")
-def motorista_chegou(motorista_id: int, x_token: str | None = Header(default=None)):
+def motorista_chegou(motorista_id: int, x_token: str | None = Header(default=None), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         motorista_do_token(conn, motorista_id, x_token)
         cur = conn.execute(
@@ -529,7 +566,7 @@ def motorista_chegou(motorista_id: int, x_token: str | None = Header(default=Non
 
 
 @app.post("/api/motoristas/{motorista_id}/saindo")
-def motorista_saindo(motorista_id: int, x_token: str | None = Header(default=None)):
+def motorista_saindo(motorista_id: int, x_token: str | None = Header(default=None), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         row = motorista_do_token(conn, motorista_id, x_token)
         if row["status"] == "finalizado":
@@ -544,7 +581,7 @@ def motorista_saindo(motorista_id: int, x_token: str | None = Header(default=Non
 
 
 @app.post("/api/motoristas/{motorista_id}/finalizar")
-def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
+def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         cur = conn.execute(
             "UPDATE motoristas SET status = 'finalizado', finalizado_em = %s WHERE id = %s AND status != 'finalizado' AND removido_em IS NULL",
@@ -558,7 +595,7 @@ def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
 
 
 @app.put("/api/motoristas/{motorista_id}")
-def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depends(exigir_login_api)):
+def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
     nome, carga, fornecedor, tipo = normalizar_motorista(payload)
     with get_db() as conn:
         cur = conn.execute(
@@ -571,7 +608,7 @@ def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depend
 
 
 @app.delete("/api/motoristas/{motorista_id}")
-def remover_motorista(motorista_id: int, _: None = Depends(exigir_login_api)):
+def remover_motorista(motorista_id: int, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         cur = conn.execute(
             "UPDATE motoristas SET removido_em = %s WHERE id = %s AND removido_em IS NULL",

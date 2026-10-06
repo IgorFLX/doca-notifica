@@ -329,7 +329,7 @@ function renderAgora(d) {
   const alvo = document.getElementById("cards-agora");
   alvo.replaceChildren(
     card(a.aguardando, "Aguardando chamada"),
-    card(a.chamados + a.na_doca, "Chamados / na doca", `${a.chamados} a caminho · ${a.na_doca} na doca`),
+    card(a.chamados + a.na_doca + a.saindo, "Chamados / na doca", `${a.chamados} a caminho · ${a.na_doca} na doca · ${a.saindo} saindo`),
     card(dur(a.maior_espera_seg), "Maior espera agora", a.maior_espera_seg != null ? `meta: ${d.meta_espera_min} min` : "ninguem aguardando",
       a.maior_espera_seg != null && a.maior_espera_seg > d.meta_espera_min * 60 ? "alerta" : ""),
     card(a.acima_meta, "Acima da meta agora", `esperando mais de ${d.meta_espera_min} min`, a.acima_meta > 0 ? "alerta" : "")

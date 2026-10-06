@@ -85,6 +85,7 @@
   .status-aguardando { background: #fef3c7; color: #92400e; }
   .status-chamado { background: #dbeafe; color: #1e40af; }
   .status-na_doca { background: #d1fae5; color: #065f46; }
+  .status-saindo { background: #e5e7eb; color: #1f2937; }
   .row-actions { display: flex; gap: 8px; align-items: center; }
   select {
     padding: 8px 10px; border: 1.5px solid #dde1ea; border-radius: 8px; font-size: 13px;
@@ -249,7 +250,7 @@
   </div>
 </dialog>
 <script>
-const STATUS_LABEL = { aguardando: "Aguardando", chamado: "A caminho", na_doca: "Na doca" };
+const STATUS_LABEL = { aguardando: "Aguardando", chamado: "A caminho", na_doca: "Na doca", saindo: "Saindo da doca" };
 
 async function apiFetch(url, options) {
   const res = await fetch(url, options);
@@ -359,11 +360,15 @@ function detectarMudancas(lista) {
   for (const [id, antigo] of statusPorId) {
     const novo = atual.get(id);
     if (!novo) {
-      if (antigo.status === "na_doca" && !acoesLocais.has(id)) {
-        mostrarToast("Saiu da doca", `${antigo.nome} - doca ${antigo.doca || "-"}`);
-      }
       acoesLocais.delete(id);
       continue;
+    }
+    if (antigo.status === "na_doca" && novo.status === "saindo") {
+      destacar.add(id);
+      setTimeout(() => destacar.delete(id), 20000);
+      bipNovo();
+      mostrarToast("Saindo da doca", `${novo.nome} - doca ${novo.doca || "-"}`);
+      if (document.visibilityState !== "visible" || !document.hasFocus()) { pendentes += 1; atualizarTitulo(); }
     }
     if (antigo.status === "chamado" && novo.status === "na_doca") {
       destacar.add(id);

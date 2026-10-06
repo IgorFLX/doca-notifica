@@ -473,6 +473,7 @@ def salvar_subscription(motorista_id: int, payload: SubscriptionPayload, x_token
 @app.get("/api/motoristas")
 def listar_motoristas(_: None = Depends(exigir_login_api)):
     with get_db() as conn:
+        indicadores.auto_finalizar(conn)
         rows = conn.execute(
             "SELECT * FROM motoristas WHERE status != 'finalizado' AND removido_em IS NULL ORDER BY criado_em ASC"
         ).fetchall()
@@ -482,6 +483,7 @@ def listar_motoristas(_: None = Depends(exigir_login_api)):
 @app.get("/api/motoristas/historico")
 def historico_motoristas(_: None = Depends(exigir_login_api)):
     with get_db() as conn:
+        indicadores.auto_finalizar(conn)
         rows = conn.execute(
             "SELECT * FROM motoristas WHERE status = 'finalizado' AND removido_em IS NULL ORDER BY criado_em DESC LIMIT 200"
         ).fetchall()
@@ -560,7 +562,7 @@ def motorista_chegou(motorista_id: int, x_token: str | None = Header(default=Non
             row = conn.execute("SELECT status FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)).fetchone()
             if not row:
                 raise HTTPException(404, "Motorista nao encontrado")
-            if row["status"] != "na_doca":
+            if row["status"] not in ("na_doca", "saindo", "finalizado"):
                 raise HTTPException(409, "Motorista ainda nao foi chamado")
         return {"ok": True}
 
@@ -569,12 +571,12 @@ def motorista_chegou(motorista_id: int, x_token: str | None = Header(default=Non
 def motorista_saindo(motorista_id: int, x_token: str | None = Header(default=None), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         row = motorista_do_token(conn, motorista_id, x_token)
-        if row["status"] == "finalizado":
+        if row["status"] in ("saindo", "finalizado"):
             return {"ok": True}
         if row["status"] != "na_doca":
             raise HTTPException(409, "Motorista ainda nao chegou na doca")
         conn.execute(
-            "UPDATE motoristas SET status = 'finalizado', finalizado_em = %s WHERE id = %s AND status = 'na_doca'",
+            "UPDATE motoristas SET status = 'saindo', finalizado_em = %s WHERE id = %s AND status = 'na_doca'",
             (datetime.now(timezone.utc), motorista_id),
         )
     return {"ok": True}
@@ -584,7 +586,7 @@ def motorista_saindo(motorista_id: int, x_token: str | None = Header(default=Non
 def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET status = 'finalizado', finalizado_em = %s WHERE id = %s AND status != 'finalizado' AND removido_em IS NULL",
+            "UPDATE motoristas SET status = 'finalizado', finalizado_em = COALESCE(finalizado_em, %s) WHERE id = %s AND status != 'finalizado' AND removido_em IS NULL",
             (datetime.now(timezone.utc), motorista_id),
         )
         if cur.rowcount == 0:

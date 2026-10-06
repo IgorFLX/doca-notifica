@@ -21,6 +21,14 @@ ETAPAS = {
 }
 
 
+def auto_finalizar(conn, minutos: int = 10):
+    conn.execute(
+        f"UPDATE motoristas SET status = 'finalizado' "
+        f"WHERE status = 'saindo' AND {ATIVO} AND finalizado_em < now() - make_interval(mins => %s)",
+        (minutos,),
+    )
+
+
 def _num(v):
     return None if v is None else float(v)
 
@@ -79,7 +87,7 @@ def _contagens(conn, desde, ate):
         (desde, ate),
     ).fetchone()["n"]
     atendidos = conn.execute(
-        f"SELECT COUNT(*) AS n FROM motoristas WHERE {ATIVO} AND status = 'finalizado' "
+        f"SELECT COUNT(*) AS n FROM motoristas WHERE {ATIVO} AND status IN ('saindo', 'finalizado') "
         "AND finalizado_em >= %s AND finalizado_em < %s",
         (desde, ate),
     ).fetchone()["n"]
@@ -90,6 +98,7 @@ def calcular_dashboard(conn, periodo: str) -> dict:
     if periodo not in PERIODOS:
         periodo = "hoje"
     dias, inicio, agora, anterior_inicio = janela(periodo)
+    auto_finalizar(conn)
     meta_min = ler_meta(conn)
 
     live = conn.execute(
@@ -97,6 +106,7 @@ def calcular_dashboard(conn, periodo: str) -> dict:
         SELECT COUNT(*) FILTER (WHERE status = 'aguardando') AS aguardando,
                COUNT(*) FILTER (WHERE status = 'chamado') AS chamados,
                COUNT(*) FILTER (WHERE status = 'na_doca') AS na_doca,
+               COUNT(*) FILTER (WHERE status = 'saindo') AS saindo,
                MAX(EXTRACT(EPOCH FROM (now() - criado_em))) FILTER (WHERE status = 'aguardando') AS maior_espera,
                COUNT(*) FILTER (
                    WHERE status = 'aguardando' AND now() - criado_em > make_interval(mins => %s)
@@ -226,6 +236,7 @@ def calcular_dashboard(conn, periodo: str) -> dict:
             "aguardando": live["aguardando"],
             "chamados": live["chamados"],
             "na_doca": live["na_doca"],
+            "saindo": live["saindo"],
             "maior_espera_seg": _int(live["maior_espera"]),
             "acima_meta": live["acima_meta"],
             "criticos": [

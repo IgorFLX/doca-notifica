@@ -360,7 +360,8 @@ async function verificarStatus() {
       document.getElementById("saiu-texto").classList.add("hidden");
     }
     if (!jaTocou) { jaTocou = true; tocarBip(); vibrar(); }
-  } else if (m.status === "finalizado") {
+  } else if (m.status === "finalizado" || m.status === "saindo") {
+    if (saindoEmAndamento) return;
     clearInterval(polling);
     resetarParaNovaEntrada();
   }

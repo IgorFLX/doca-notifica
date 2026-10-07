@@ -213,6 +213,10 @@ def init_db():
             conn.execute("ALTER TABLE motoristas ADD COLUMN chegou_em TIMESTAMPTZ")
         if "removido_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN removido_em TIMESTAMPTZ")
+        if "saiu_doca_em" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN saiu_doca_em TIMESTAMPTZ")
+        if "nf_liberada_em" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN nf_liberada_em TIMESTAMPTZ")
 
 
 init_db()
@@ -571,12 +575,53 @@ def motorista_chegou(motorista_id: int, x_token: str | None = Header(default=Non
 def motorista_saindo(motorista_id: int, x_token: str | None = Header(default=None), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         row = motorista_do_token(conn, motorista_id, x_token)
-        if row["status"] in ("saindo", "finalizado"):
+        if row["status"] in ("aguardando_nf", "nf_liberada", "saindo", "finalizado"):
             return {"ok": True}
         if row["status"] != "na_doca":
             raise HTTPException(409, "Motorista ainda nao chegou na doca")
+        agora = datetime.now(timezone.utc)
+        if row.get("tipo") == "COLETA":
+            conn.execute(
+                "UPDATE motoristas SET status = 'aguardando_nf', saiu_doca_em = %s WHERE id = %s AND status = 'na_doca'",
+                (agora, motorista_id),
+            )
+            return {"ok": True, "proximo": "aguardando_nf"}
         conn.execute(
-            "UPDATE motoristas SET status = 'saindo', finalizado_em = %s WHERE id = %s AND status = 'na_doca'",
+            "UPDATE motoristas SET status = 'saindo', saiu_doca_em = %s, finalizado_em = %s WHERE id = %s AND status = 'na_doca'",
+            (agora, agora, motorista_id),
+        )
+    return {"ok": True, "proximo": "saindo"}
+
+
+@app.post("/api/motoristas/{motorista_id}/liberar-nf")
+def liberar_nf(motorista_id: int, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE motoristas SET status = 'nf_liberada', nf_liberada_em = %s "
+            "WHERE id = %s AND status = 'aguardando_nf' AND removido_em IS NULL",
+            (datetime.now(timezone.utc), motorista_id),
+        )
+        if cur.rowcount == 0:
+            row = conn.execute("SELECT status FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, "Motorista nao encontrado")
+            if row["status"] != "nf_liberada":
+                raise HTTPException(409, "Motorista nao esta aguardando NF")
+            return {"ok": True}
+    enviar_push(motorista_id, "NF liberada", "Sua NF esta liberada. Pode retirar.")
+    return {"ok": True}
+
+
+@app.post("/api/motoristas/{motorista_id}/retirei-nf")
+def retirei_nf(motorista_id: int, x_token: str | None = Header(default=None), _sig: None = Depends(sinalizar)):
+    with get_db() as conn:
+        row = motorista_do_token(conn, motorista_id, x_token)
+        if row["status"] in ("saindo", "finalizado"):
+            return {"ok": True}
+        if row["status"] != "nf_liberada":
+            raise HTTPException(409, "NF ainda nao foi liberada")
+        conn.execute(
+            "UPDATE motoristas SET status = 'saindo', finalizado_em = %s WHERE id = %s AND status = 'nf_liberada'",
             (datetime.now(timezone.utc), motorista_id),
         )
     return {"ok": True}

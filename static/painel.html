@@ -86,6 +86,8 @@
   .status-chamado { background: #dbeafe; color: #1e40af; }
   .status-na_doca { background: #d1fae5; color: #065f46; }
   .status-saindo { background: #e5e7eb; color: #1f2937; }
+  .status-aguardando_nf { background: #ffedd5; color: #9a3412; }
+  .status-nf_liberada { background: #dbeafe; color: #1e40af; }
   .row-actions { display: flex; gap: 8px; align-items: center; }
   select {
     padding: 8px 10px; border: 1.5px solid #dde1ea; border-radius: 8px; font-size: 13px;
@@ -250,7 +252,7 @@
   </div>
 </dialog>
 <script>
-const STATUS_LABEL = { aguardando: "Aguardando", chamado: "A caminho", na_doca: "Na doca", saindo: "Saindo da doca" };
+const STATUS_LABEL = { aguardando: "Aguardando", chamado: "A caminho", na_doca: "Na doca", aguardando_nf: "Aguardando NF", nf_liberada: "NF liberada", saindo: "Saindo da doca" };
 
 async function apiFetch(url, options) {
   const res = await fetch(url, options);
@@ -362,6 +364,13 @@ function detectarMudancas(lista) {
     if (!novo) {
       acoesLocais.delete(id);
       continue;
+    }
+    if (antigo.status !== "aguardando_nf" && novo.status === "aguardando_nf") {
+      destacar.add(id);
+      setTimeout(() => destacar.delete(id), 20000);
+      bipNovo();
+      mostrarToast("Aguardando NF", `${novo.nome} - ${novo.fornecedor || ""}`);
+      if (document.visibilityState !== "visible" || !document.hasFocus()) { pendentes += 1; atualizarTitulo(); }
     }
     if (antigo.status === "na_doca" && novo.status === "saindo") {
       destacar.add(id);
@@ -565,6 +574,12 @@ async function carregar() {
       btn.onclick = () => chamar(m.id, select.value, btn);
       wrap.appendChild(select);
       wrap.appendChild(btn);
+    } else if (m.status === "aguardando_nf") {
+      const btn = document.createElement("button");
+      btn.className = "btn-chamar";
+      btn.textContent = "Liberar NF";
+      btn.onclick = () => liberarNF(m.id, btn);
+      wrap.appendChild(btn);
     } else {
       const btn = document.createElement("button");
       btn.className = "btn-finalizar";
@@ -701,6 +716,14 @@ async function chamar(id, doca, btn) {
   });
   if (!res.ok && res.status !== 409) alert("Nao foi possivel chamar o motorista. Tente novamente.");
   delete docaEscolhida[id];
+  carregar();
+}
+
+async function liberarNF(id, btn) {
+  btn.disabled = true;
+  btn.textContent = "Liberando...";
+  const res = await apiFetch(`/api/motoristas/${id}/liberar-nf`, { method: "POST" });
+  if (!res.ok && res.status !== 409) alert("Nao foi possivel liberar a NF. Tente novamente.");
   carregar();
 }
 

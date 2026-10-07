@@ -16,7 +16,8 @@ ATIVO = "removido_em IS NULL"
 ETAPAS = {
     "fila": ("criado_em", "chamado_em"),
     "deslocamento": ("chamado_em", "chegou_em"),
-    "atendimento": ("chegou_em", "finalizado_em"),
+    "atendimento": ("chegou_em", "COALESCE(saiu_doca_em, finalizado_em)"),
+    "nf": ("saiu_doca_em", "nf_liberada_em"),
     "total": ("criado_em", "finalizado_em"),
 }
 

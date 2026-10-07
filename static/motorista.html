@@ -193,6 +193,13 @@
     <p class="confirmado hidden" id="saiu-texto">Saida registrada. Obrigado e boa viagem!</p>
   </div>
 
+  <div id="tela-nf" class="hidden">
+    <h1 id="titulo-nf">AGUARDE A NF</h1>
+    <div class="doca-numero nf-icone" id="nf-icone">NF</div>
+    <p class="confirmado" id="nf-texto">Estamos preparando sua nota fiscal. Voce sera avisado quando puder retirar.</p>
+    <button class="btn-cheguei hidden" id="btn-retirei" onclick="retireiNF()">Retirei a NF</button>
+  </div>
+
   </div>
 </div>
 
@@ -204,7 +211,7 @@ let polling = null;
 let jaTocou = false;
 
 function mostrarTela(id) {
-  document.querySelectorAll("#form-entrada, #tela-espera, #tela-chamado").forEach(el => el.classList.add("hidden"));
+  document.querySelectorAll("#form-entrada, #tela-espera, #tela-chamado, #tela-nf").forEach(el => el.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
 }
 
@@ -360,8 +367,19 @@ async function verificarStatus() {
       document.getElementById("saiu-texto").classList.add("hidden");
     }
     if (!jaTocou) { jaTocou = true; tocarBip(); vibrar(); }
+  } else if (m.status === "aguardando_nf" || m.status === "nf_liberada") {
+    document.getElementById("body").classList.add("chamado");
+    mostrarTela("tela-nf");
+    const liberada = m.status === "nf_liberada";
+    document.getElementById("titulo-nf").textContent = liberada ? "NF LIBERADA" : "AGUARDE A NF";
+    document.getElementById("nf-icone").textContent = liberada ? "OK" : "NF";
+    document.getElementById("nf-texto").textContent = liberada
+      ? "Sua nota fiscal esta liberada. Pode retirar!"
+      : "Estamos preparando sua nota fiscal. Voce sera avisado quando puder retirar.";
+    if (liberada && !retirandoNF) document.getElementById("btn-retirei").classList.remove("hidden");
+    if (liberada && !nfAvisada) { nfAvisada = true; tocarBip(); vibrar(); }
   } else if (m.status === "finalizado" || m.status === "saindo") {
-    if (saindoEmAndamento) return;
+    if (saindoEmAndamento || retirandoNF) return;
     clearInterval(polling);
     resetarParaNovaEntrada();
   }
@@ -397,6 +415,15 @@ async function saindo() {
   try {
     const res = await fetch(`/api/motoristas/${motoristaId}/saindo`, { method: "POST", headers: headersMotorista() });
     if (!res.ok) throw new Error("status " + res.status);
+    const dados = await res.json().catch(() => ({}));
+    if (dados.proximo === "aguardando_nf") {
+      saindoEmAndamento = false;
+      btn.disabled = false;
+      btn.textContent = "Estou saindo da doca";
+      btn.classList.add("hidden");
+      mostrarTela("tela-nf");
+      return;
+    }
     btn.classList.add("hidden");
     document.getElementById("confirmado-texto").classList.add("hidden");
     document.getElementById("saiu-texto").classList.remove("hidden");
@@ -407,6 +434,30 @@ async function saindo() {
     btn.disabled = false;
     btn.textContent = "Estou saindo da doca";
     alert("Nao foi possivel registrar a saida, tente novamente.");
+  }
+}
+
+let nfAvisada = false;
+let retirandoNF = false;
+
+async function retireiNF() {
+  if (!motoristaId || retirandoNF) return;
+  retirandoNF = true;
+  const btn = document.getElementById("btn-retirei");
+  btn.disabled = true;
+  btn.textContent = "Registrando...";
+  try {
+    const res = await fetch(`/api/motoristas/${motoristaId}/retirei-nf`, { method: "POST", headers: headersMotorista() });
+    if (!res.ok) throw new Error("status " + res.status);
+    btn.classList.add("hidden");
+    document.getElementById("titulo-nf").textContent = "ATE LOGO!";
+    document.getElementById("nf-texto").textContent = "Retirada registrada. Obrigado e boa viagem!";
+    agendarReset();
+  } catch (e) {
+    retirandoNF = false;
+    btn.disabled = false;
+    btn.textContent = "Retirei a NF";
+    alert("Nao foi possivel registrar, tente novamente.");
   }
 }
 
@@ -421,6 +472,12 @@ function agendarReset() {
 function resetarParaNovaEntrada() {
   resetAgendado = false;
   saindoEmAndamento = false;
+  retirandoNF = false;
+  nfAvisada = false;
+  const br = document.getElementById("btn-retirei");
+  br.disabled = false;
+  br.textContent = "Retirei a NF";
+  br.classList.add("hidden");
   const bs = document.getElementById("btn-saindo");
   bs.disabled = false;
   bs.textContent = "Estou saindo da doca";

@@ -213,6 +213,8 @@ def init_db():
             conn.execute("ALTER TABLE motoristas ADD COLUMN chegou_em TIMESTAMPTZ")
         if "removido_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN removido_em TIMESTAMPTZ")
+        if "nf" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN nf TEXT")
         if "saiu_doca_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN saiu_doca_em TIMESTAMPTZ")
         if "nf_liberada_em" not in colunas:
@@ -227,10 +229,19 @@ class NovoMotorista(BaseModel):
     carga: str = Field(max_length=50)
     fornecedor: str = Field(max_length=100)
     tipo: str = Field(max_length=20)
+    nf: str | None = Field(default=None, max_length=120)
 
 
 class ChamarPayload(BaseModel):
     doca: str
+
+
+class LiberarNFPayload(BaseModel):
+    nf: str = Field(max_length=120)
+
+
+def normalizar_nf(valor) -> str:
+    return " ".join((valor or "").split()).upper()
 
 
 class SubscriptionPayload(BaseModel):
@@ -594,12 +605,15 @@ def motorista_saindo(motorista_id: int, x_token: str | None = Header(default=Non
 
 
 @app.post("/api/motoristas/{motorista_id}/liberar-nf")
-def liberar_nf(motorista_id: int, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
+def liberar_nf(motorista_id: int, payload: LiberarNFPayload, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
+    nf = normalizar_nf(payload.nf)
+    if not nf:
+        raise HTTPException(422, "Informe o numero da NF")
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET status = 'nf_liberada', nf_liberada_em = %s "
+            "UPDATE motoristas SET status = 'nf_liberada', nf_liberada_em = %s, nf = %s "
             "WHERE id = %s AND status = 'aguardando_nf' AND removido_em IS NULL",
-            (datetime.now(timezone.utc), motorista_id),
+            (datetime.now(timezone.utc), nf, motorista_id),
         )
         if cur.rowcount == 0:
             row = conn.execute("SELECT status FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)).fetchone()
@@ -644,10 +658,11 @@ def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api), 
 @app.put("/api/motoristas/{motorista_id}")
 def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
     nome, carga, fornecedor, tipo = normalizar_motorista(payload)
+    nf = normalizar_nf(payload.nf) or None
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s, tipo = %s WHERE id = %s AND removido_em IS NULL",
-            (nome, carga, fornecedor, tipo, motorista_id),
+            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s, tipo = %s, nf = %s WHERE id = %s AND removido_em IS NULL",
+            (nome, carga, fornecedor, tipo, nf, motorista_id),
         )
         if cur.rowcount == 0:
             raise HTTPException(404, "Motorista nao encontrado")

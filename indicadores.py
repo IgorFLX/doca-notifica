@@ -310,14 +310,16 @@ def gerar_csv(conn, periodo: str) -> bytes:
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
     w.writerow([
-        "ID", "Motorista", "ID da carga", "Fornecedor", "Tipo", "Doca", "Status",
-        "Entrada", "Chamada", "Chegada na doca", "Finalizado",
+        "Ordem de chegada", "ID", "Motorista", "ID da carga", "Fornecedor", "Tipo", "NF", "Doca", "Status",
+        "Entrada", "Chamada", "Chegada na doca", "Saida da doca", "NF liberada", "Finalizado",
         "Espera na fila (min)", "Deslocamento (min)", "Atendimento (min)", "Total (min)",
     ])
-    for r in rows:
+    for ordem, r in enumerate(rows, start=1):
         w.writerow([
-            r["id"], _seguro(r["nome"]), _seguro(r["carga"]), _seguro(r["fornecedor"]), r["tipo"] or "", r["doca"] or "", r["status"],
-            _local(r["criado_em"]), _local(r["chamado_em"]), _local(r["chegou_em"]), _local(r["finalizado_em"]),
+            ordem, r["id"], _seguro(r["nome"]), _seguro(r["carga"]), _seguro(r["fornecedor"]), r["tipo"] or "",
+            _seguro(r["nf"]), r["doca"] or "", r["status"],
+            _local(r["criado_em"]), _local(r["chamado_em"]), _local(r["chegou_em"]),
+            _local(r["saiu_doca_em"]), _local(r["nf_liberada_em"]), _local(r["finalizado_em"]),
             _min(r["criado_em"], r["chamado_em"]), _min(r["chamado_em"], r["chegou_em"]),
             _min(r["chegou_em"], r["finalizado_em"]), _min(r["criado_em"], r["finalizado_em"]),
         ])

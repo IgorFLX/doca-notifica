@@ -85,6 +85,8 @@
   .status-aguardando { background: #fef3c7; color: #92400e; }
   .status-chamado { background: #dbeafe; color: #1e40af; }
   .status-na_doca { background: #d1fae5; color: #065f46; }
+  .input-nf { width: 110px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
+  .chegada { font-variant-numeric: tabular-nums; white-space: nowrap; color: #475569; }
   .status-saindo { background: #e5e7eb; color: #1f2937; }
   .status-aguardando_nf { background: #ffedd5; color: #9a3412; }
   .status-nf_liberada { background: #dbeafe; color: #1e40af; }
@@ -203,7 +205,7 @@
   <p class="panel-title">Fila de motoristas</p>
   <table>
     <thead>
-      <tr><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Tipo</th><th>Status</th><th>Doca</th><th>Espera</th><th>Acao</th></tr>
+      <tr><th>Chegada</th><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Tipo</th><th>Status</th><th>Doca</th><th>Espera</th><th>Acao</th></tr>
     </thead>
     <tbody id="tbody"></tbody>
   </table>
@@ -226,7 +228,7 @@
   <p class="panel-title" style="margin-top:30px">Historico</p>
   <table>
     <thead>
-      <tr><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Tipo</th><th>Doca</th><th>Espera</th><th>Finalizado</th><th></th></tr>
+      <tr><th>Chegada</th><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Tipo</th><th>NF</th><th>Doca</th><th>Espera</th><th>Finalizado</th><th></th></tr>
     </thead>
     <tbody id="tbody-historico"></tbody>
   </table>
@@ -239,6 +241,7 @@
   <label>Nome<input type="text" id="ed-nome" maxlength="100" /></label>
   <label>ID da carga<input type="text" id="ed-carga" maxlength="50" /></label>
   <label>Fornecedor<input type="text" id="ed-fornecedor" maxlength="100" /></label>
+  <label>NF (coleta)<input type="text" id="ed-nf" maxlength="120" /></label>
   <label>Tipo
     <select id="ed-tipo">
       <option value="">Selecione...</option>
@@ -284,6 +287,15 @@ function formatarDuracao(ms) {
   if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
   if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
   return `${s}s`;
+}
+
+function horaChegada(m) {
+  const d = new Date(m.criado_em);
+  const tz = { timeZone: "America/Sao_Paulo" };
+  const hora = d.toLocaleTimeString("pt-BR", { ...tz, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const dia = d.toLocaleDateString("pt-BR", { ...tz, day: "2-digit", month: "2-digit" });
+  const hoje = new Date().toLocaleDateString("pt-BR", { ...tz, day: "2-digit", month: "2-digit" });
+  return dia === hoje ? hora : `${dia} ${hora}`;
 }
 
 function esperaDe(m) {
@@ -502,6 +514,7 @@ document.getElementById("btn-instalar").onclick = async () => {
 };
 
 const docaEscolhida = {};
+const nfDigitada = {};
 let seletorEmUsoAte = 0;
 
 async function carregar() {
@@ -509,7 +522,7 @@ async function carregar() {
   const motoristas = await res.json();
   detectarNovos(motoristas);
   detectarMudancas(motoristas);
-  const emUso = document.activeElement && document.activeElement.tagName === "SELECT";
+  const emUso = document.activeElement && ["SELECT", "INPUT"].includes(document.activeElement.tagName) && !document.getElementById("dlg-editar").open;
   if (emUso && Date.now() < seletorEmUsoAte) return;
   const tbody = document.getElementById("tbody");
   const empty = document.getElementById("empty");
@@ -519,6 +532,10 @@ async function carregar() {
   for (const m of motoristas) {
     const tr = document.createElement("tr");
     if (destacar.has(m.id)) tr.classList.add("linha-nova");
+
+    const tdChegada = document.createElement("td");
+    tdChegada.className = "chegada";
+    tdChegada.textContent = horaChegada(m);
 
     const tdNome = document.createElement("td");
     tdNome.textContent = m.nome;
@@ -530,7 +547,7 @@ async function carregar() {
     tdFornecedor.textContent = m.fornecedor || "-";
 
     const tdTipo = document.createElement("td");
-    tdTipo.textContent = rotuloTipo(m.tipo);
+    tdTipo.textContent = rotuloTipo(m.tipo) + (m.nf ? ` - NF ${m.nf}` : "");
 
     const tdStatus = document.createElement("td");
     const span = document.createElement("span");
@@ -575,10 +592,19 @@ async function carregar() {
       wrap.appendChild(select);
       wrap.appendChild(btn);
     } else if (m.status === "aguardando_nf") {
+      const inputNF = document.createElement("input");
+      inputNF.type = "text";
+      inputNF.className = "input-nf";
+      inputNF.placeholder = "N da NF";
+      inputNF.maxLength = 120;
+      inputNF.value = nfDigitada[m.id] || "";
+      inputNF.addEventListener("input", () => { nfDigitada[m.id] = inputNF.value; seletorEmUsoAte = Date.now() + 8000; });
+      inputNF.addEventListener("focus", () => { seletorEmUsoAte = Date.now() + 8000; });
       const btn = document.createElement("button");
       btn.className = "btn-chamar";
       btn.textContent = "Liberar NF";
-      btn.onclick = () => liberarNF(m.id, btn);
+      btn.onclick = () => liberarNF(m.id, inputNF, btn);
+      wrap.appendChild(inputNF);
       wrap.appendChild(btn);
     } else {
       const btn = document.createElement("button");
@@ -590,8 +616,8 @@ async function carregar() {
 
     wrap.appendChild(botoesSecundarios(m));
     tdAcao.appendChild(wrap);
-    tr.append(tdNome, tdCarga, tdFornecedor, tdTipo, tdStatus, tdDoca, tdEspera, tdAcao);
-    rotular(tr, ["Motorista", "ID da carga", "Fornecedor", "Tipo", "Status", "Doca", "Espera", ""]);
+    tr.append(tdChegada, tdNome, tdCarga, tdFornecedor, tdTipo, tdStatus, tdDoca, tdEspera, tdAcao);
+    rotular(tr, ["Chegada", "Motorista", "ID da carga", "Fornecedor", "Tipo", "Status", "Doca", "Espera", ""]);
     tbody.appendChild(tr);
   }
 }
@@ -608,6 +634,10 @@ async function carregarHistorico() {
     const tr = document.createElement("tr");
     tr.className = "linha-historico";
 
+    const tdChegadaH = document.createElement("td");
+    tdChegadaH.className = "chegada";
+    tdChegadaH.textContent = horaChegada(m);
+
     const tdNome = document.createElement("td");
     tdNome.textContent = m.nome;
 
@@ -619,6 +649,9 @@ async function carregarHistorico() {
 
     const tdTipoH = document.createElement("td");
     tdTipoH.textContent = rotuloTipo(m.tipo);
+
+    const tdNF = document.createElement("td");
+    tdNF.textContent = m.nf || "-";
 
     const tdDoca = document.createElement("td");
     tdDoca.textContent = m.doca || "-";
@@ -633,8 +666,8 @@ async function carregarHistorico() {
     const tdAcaoH = document.createElement("td");
     tdAcaoH.appendChild(botoesSecundarios(m));
 
-    tr.append(tdNome, tdCarga, tdFornecedor, tdTipoH, tdDoca, tdEspera, tdFinalizado, tdAcaoH);
-    rotular(tr, ["Motorista", "ID da carga", "Fornecedor", "Tipo", "Doca", "Espera", "Finalizado", ""]);
+    tr.append(tdChegadaH, tdNome, tdCarga, tdFornecedor, tdTipoH, tdNF, tdDoca, tdEspera, tdFinalizado, tdAcaoH);
+    rotular(tr, ["Chegada", "Motorista", "ID da carga", "Fornecedor", "Tipo", "NF", "Doca", "Espera", "Finalizado", ""]);
     tbody.appendChild(tr);
   }
 }
@@ -662,6 +695,7 @@ function abrirEdicao(m) {
   document.getElementById("ed-carga").value = m.carga || "";
   document.getElementById("ed-fornecedor").value = m.fornecedor || "";
   document.getElementById("ed-tipo").value = m.tipo || "";
+  document.getElementById("ed-nf").value = m.nf || "";
   document.getElementById("ed-erro").textContent = "";
   document.getElementById("dlg-editar").showModal();
 }
@@ -676,6 +710,7 @@ async function salvarEdicao() {
   const carga = document.getElementById("ed-carga").value.trim();
   const fornecedor = document.getElementById("ed-fornecedor").value.trim();
   const tipo = document.getElementById("ed-tipo").value;
+  const nf = document.getElementById("ed-nf").value.trim();
   const erro = document.getElementById("ed-erro");
   if (!nome || !carga || !fornecedor || !tipo) { erro.textContent = "Preencha todos os campos."; return; }
   const btn = document.getElementById("ed-salvar");
@@ -684,7 +719,7 @@ async function salvarEdicao() {
     const res = await apiFetch(`/api/motoristas/${editandoId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, carga, fornecedor, tipo }),
+      body: JSON.stringify({ nome, carga, fornecedor, tipo, nf }),
     });
     if (!res.ok) { erro.textContent = "Nao foi possivel salvar. Tente novamente."; return; }
     fecharEdicao();
@@ -719,12 +754,20 @@ async function chamar(id, doca, btn) {
   carregar();
 }
 
-async function liberarNF(id, btn) {
+async function liberarNF(id, input, btn) {
+  const nf = input.value.trim();
+  if (!nf) { alert("Informe o numero da NF antes de liberar."); input.focus(); return; }
   btn.disabled = true;
   btn.textContent = "Liberando...";
-  const res = await apiFetch(`/api/motoristas/${id}/liberar-nf`, { method: "POST" });
+  const res = await apiFetch(`/api/motoristas/${id}/liberar-nf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nf }),
+  });
   if (!res.ok && res.status !== 409) alert("Nao foi possivel liberar a NF. Tente novamente.");
+  delete nfDigitada[id];
   carregar();
+  carregarHistorico();
 }
 
 async function finalizar(id) {

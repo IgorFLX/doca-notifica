@@ -338,22 +338,28 @@ function desbloquearAudio() {
 function tocarSequencia() {
   if (!audioCtx) return;
   const t0 = audioCtx.currentTime + 0.02;
+  const comp = audioCtx.createDynamicsCompressor();
   const mestre = audioCtx.createGain();
   mestre.gain.value = 1;
+  comp.connect(mestre);
   mestre.connect(audioCtx.destination);
-  [[784, 0], [988, 0.28], [1175, 0.56], [988, 0.9], [1175, 1.18]].forEach(([freq, delta]) => {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "triangle";
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.0001, t0 + delta);
-    gain.gain.exponentialRampToValueAtTime(0.9, t0 + delta + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, t0 + delta + 0.26);
-    osc.connect(gain);
-    gain.connect(mestre);
-    osc.start(t0 + delta);
-    osc.stop(t0 + delta + 0.27);
-  });
+  for (let r = 0; r < 3; r++) {
+    [[880, 0], [1175, 0.22], [880, 0.44], [1175, 0.66]].forEach(([freq, delta]) => {
+      const ini = t0 + r * 1.05 + delta;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ini);
+      gain.gain.exponentialRampToValueAtTime(1, ini + 0.015);
+      gain.gain.setValueAtTime(1, ini + 0.17);
+      gain.gain.exponentialRampToValueAtTime(0.001, ini + 0.2);
+      osc.connect(gain);
+      gain.connect(comp);
+      osc.start(ini);
+      osc.stop(ini + 0.21);
+    });
+  }
 }
 
 function bipNovo() {

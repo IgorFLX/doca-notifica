@@ -116,6 +116,8 @@
     .qr-box img { width: 120px; height: 120px; }
   }
   html, body { overflow-x: hidden; }
+  #btn-som.ligado { background: rgba(22,163,74,.35); border-color: rgba(134,239,172,.7); }
+  #btn-som.chama { animation: chamar 1.6s ease-in-out infinite; }
   #btn-avisos.ligado { background: rgba(22,163,74,.35); border-color: rgba(134,239,172,.7); }
   #btn-avisos.negado { background: rgba(220,38,38,.3); border-color: rgba(252,165,165,.7); }
   #btn-avisos.chama { animation: chamar 1.6s ease-in-out infinite; }
@@ -195,6 +197,7 @@
   <span class="logo"><img src="/static/logo-dsv.webp" alt="DSV" /></span>
   <h1>Painel da Doca &mdash; Chamada de Motoristas</h1>
   <button class="nav-link" id="btn-instalar" hidden>Instalar app</button>
+  <button class="nav-link" id="btn-som" onclick="ativarSom()">Ativar som</button>
   <button class="nav-link" id="btn-avisos" onclick="alternarAvisos()">Ativar avisos</button>
   <a class="nav-link" href="/dashboard">Dashboard</a>
   <button class="btn-sair" onclick="sair()">Sair</button>
@@ -311,32 +314,60 @@ let pendentes = 0;
 let audioCtx = null;
 let avisosEstado = "desligado";
 
+function atualizarBotaoSom() {
+  const b = document.getElementById("btn-som");
+  if (!b) return;
+  const ok = audioCtx && audioCtx.state === "running";
+  b.textContent = ok ? "Som ativo" : "Ativar som";
+  b.classList.toggle("ligado", !!ok);
+  b.classList.toggle("chama", !ok);
+}
+
 function desbloquearAudio() {
   try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === "suspended") audioCtx.resume();
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.onstatechange = atualizarBotaoSom;
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume().then(atualizarBotaoSom, () => {});
+    atualizarBotaoSom();
   } catch (e) {}
 }
-["click", "keydown", "touchstart"].forEach((ev) => document.addEventListener(ev, desbloquearAudio, { passive: true }));
+["click", "keydown", "touchstart", "pointerdown"].forEach((ev) => document.addEventListener(ev, desbloquearAudio, { passive: true }));
+
+function tocarSequencia() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime + 0.02;
+  const mestre = audioCtx.createGain();
+  mestre.gain.value = 1;
+  mestre.connect(audioCtx.destination);
+  [[784, 0], [988, 0.28], [1175, 0.56], [988, 0.9], [1175, 1.18]].forEach(([freq, delta]) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, t0 + delta);
+    gain.gain.exponentialRampToValueAtTime(0.9, t0 + delta + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + delta + 0.26);
+    osc.connect(gain);
+    gain.connect(mestre);
+    osc.start(t0 + delta);
+    osc.stop(t0 + delta + 0.27);
+  });
+}
 
 function bipNovo() {
   try {
     desbloquearAudio();
     if (!audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    [660, 880].forEach((freq, i) => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.25, t0 + i * 0.22);
-      gain.gain.exponentialRampToValueAtTime(0.001, t0 + i * 0.22 + 0.2);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start(t0 + i * 0.22);
-      osc.stop(t0 + i * 0.22 + 0.21);
-    });
+    if (audioCtx.state === "running") tocarSequencia();
+    else audioCtx.resume().then(tocarSequencia, () => {});
   } catch (e) {}
+}
+
+function ativarSom() {
+  desbloquearAudio();
+  bipNovo();
 }
 
 function mostrarToast(titulo, texto) {
@@ -421,6 +452,9 @@ function detectarNovos(lista) {
     atualizarTitulo();
   }
 }
+
+setInterval(atualizarBotaoSom, 2000);
+setTimeout(atualizarBotaoSom, 0);
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);

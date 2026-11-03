@@ -321,6 +321,6 @@ def gerar_csv(conn, periodo: str) -> bytes:
             _local(r["criado_em"]), _local(r["chamado_em"]), _local(r["chegou_em"]),
             _local(r["saiu_doca_em"]), _local(r["nf_liberada_em"]), _local(r["finalizado_em"]),
             _min(r["criado_em"], r["chamado_em"]), _min(r["chamado_em"], r["chegou_em"]),
-            _min(r["chegou_em"], r["finalizado_em"]), _min(r["criado_em"], r["finalizado_em"]),
+            _min(r["chegou_em"], r["saiu_doca_em"] or r["finalizado_em"]), _min(r["criado_em"], r["finalizado_em"]),
         ])
     return ("﻿" + buf.getvalue()).encode("utf-8")

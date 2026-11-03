@@ -213,6 +213,12 @@ def init_db():
             conn.execute("ALTER TABLE motoristas ADD COLUMN chegou_em TIMESTAMPTZ")
         if "removido_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN removido_em TIMESTAMPTZ")
+        if "nf_entrega" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN nf_entrega TEXT")
+        if "nf_chamado_em" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN nf_chamado_em TIMESTAMPTZ")
+        if "nf_entregue_em" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN nf_entregue_em TIMESTAMPTZ")
         if "nf" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN nf TEXT")
         if "saiu_doca_em" not in colunas:
@@ -562,6 +568,37 @@ def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depend
                 raise HTTPException(404, "Motorista nao encontrado")
             raise HTTPException(409, "Motorista ja foi chamado")
     enviar_push(motorista_id, "Va para a doca", f"Doca {doca} - dirija-se ate la agora.")
+    return {"ok": True}
+
+
+@app.post("/api/motoristas/{motorista_id}/chamar-nf-adm")
+def chamar_nf_adm(motorista_id: int, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE motoristas SET nf_entrega = 'chamado', nf_chamado_em = %s "
+            "WHERE id = %s AND status = 'aguardando' AND tipo = 'DESCARGA' AND nf_entrega IS NULL AND removido_em IS NULL",
+            (datetime.now(timezone.utc), motorista_id),
+        )
+        if cur.rowcount == 0:
+            row = conn.execute("SELECT status, tipo, nf_entrega FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, "Motorista nao encontrado")
+            if row["nf_entrega"]:
+                return {"ok": True}
+            raise HTTPException(409, "So da para chamar motorista de descarga que esta no bolsao")
+    enviar_push(motorista_id, "Leve a NF ao administrativo", "O administrativo esta chamando voce para entregar a NF.")
+    return {"ok": True}
+
+
+@app.post("/api/motoristas/{motorista_id}/entreguei-nf")
+def entreguei_nf(motorista_id: int, x_token: str | None = Header(default=None), _sig: None = Depends(sinalizar)):
+    with get_db() as conn:
+        motorista_do_token(conn, motorista_id, x_token)
+        conn.execute(
+            "UPDATE motoristas SET nf_entrega = 'entregue', nf_entregue_em = %s "
+            "WHERE id = %s AND nf_entrega = 'chamado' AND removido_em IS NULL",
+            (datetime.now(timezone.utc), motorista_id),
+        )
     return {"ok": True}
 
 

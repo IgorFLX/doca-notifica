@@ -87,6 +87,8 @@
   .status-na_doca { background: #d1fae5; color: #065f46; }
   .input-nf { width: 110px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
   .chegada { font-variant-numeric: tabular-nums; white-space: nowrap; color: #475569; }
+  .status-nfadm-chamado { background: #fef3c7; color: #92400e; display: inline-block; margin-top: 4px; }
+  .status-nfadm-entregue { background: #d1fae5; color: #065f46; display: inline-block; margin-top: 4px; }
   .status-saindo { background: #e5e7eb; color: #1f2937; }
   .status-aguardando_nf { background: #ffedd5; color: #9a3412; }
   .status-nf_liberada { background: #dbeafe; color: #1e40af; }
@@ -258,7 +260,7 @@
   </div>
 </dialog>
 <script>
-const STATUS_LABEL = { aguardando: "Aguardando", chamado: "A caminho", na_doca: "Na doca", aguardando_nf: "Aguardando NF", nf_liberada: "NF liberada", saindo: "Saindo da doca" };
+const STATUS_LABEL = { aguardando: "No bolsao", chamado: "A caminho", na_doca: "Na doca", aguardando_nf: "Aguardando NF", nf_liberada: "NF liberada", saindo: "Saindo da doca" };
 
 async function apiFetch(url, options) {
   const res = await fetch(url, options);
@@ -413,6 +415,13 @@ function detectarMudancas(lista) {
     if (!novo) {
       acoesLocais.delete(id);
       continue;
+    }
+    if (antigo.nf_entrega !== "entregue" && novo.nf_entrega === "entregue") {
+      destacar.add(id);
+      setTimeout(() => destacar.delete(id), 20000);
+      bipNovo();
+      mostrarToast("NF entregue ao adm", `${novo.nome} - ${novo.fornecedor || ""}`);
+      if (document.visibilityState !== "visible" || !document.hasFocus()) { pendentes += 1; atualizarTitulo(); }
     }
     if (antigo.status !== "aguardando_nf" && novo.status === "aguardando_nf") {
       destacar.add(id);
@@ -594,6 +603,12 @@ async function carregar() {
     span.className = "status status-" + m.status;
     span.textContent = STATUS_LABEL[m.status] || m.status;
     tdStatus.appendChild(span);
+    if (m.status === "aguardando" && m.nf_entrega) {
+      const nfs = document.createElement("span");
+      nfs.className = "status status-nfadm-" + m.nf_entrega;
+      nfs.textContent = m.nf_entrega === "chamado" ? "Levando NF ao adm" : "NF entregue ao adm";
+      tdStatus.appendChild(nfs);
+    }
 
     const tdDoca = document.createElement("td");
     tdDoca.textContent = m.doca || "-";
@@ -631,6 +646,13 @@ async function carregar() {
       btn.onclick = () => chamar(m.id, select.value, btn);
       wrap.appendChild(select);
       wrap.appendChild(btn);
+      if (m.tipo === "DESCARGA" && !m.nf_entrega) {
+        const btnNF = document.createElement("button");
+        btnNF.className = "btn-sec";
+        btnNF.textContent = "Chamar p/ levar NF";
+        btnNF.onclick = () => chamarNFAdm(m.id, btnNF);
+        wrap.appendChild(btnNF);
+      }
     } else if (m.status === "aguardando_nf") {
       const inputNF = document.createElement("input");
       inputNF.type = "text";
@@ -791,6 +813,14 @@ async function chamar(id, doca, btn) {
   });
   if (!res.ok && res.status !== 409) alert("Nao foi possivel chamar o motorista. Tente novamente.");
   delete docaEscolhida[id];
+  carregar();
+}
+
+async function chamarNFAdm(id, btn) {
+  btn.disabled = true;
+  btn.textContent = "Chamando...";
+  const res = await apiFetch(`/api/motoristas/${id}/chamar-nf-adm`, { method: "POST" });
+  if (!res.ok && res.status !== 409) alert("Nao foi possivel chamar o motorista. Tente novamente.");
   carregar();
 }
 

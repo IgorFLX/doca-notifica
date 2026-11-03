@@ -179,9 +179,11 @@
   </div>
 
   <div id="tela-espera" class="hidden">
-    <h1>Aguardando chamada...</h1>
+    <h1 id="titulo-espera">DIRIJA-SE AO BOLSAO</h1>
     <div class="pulso"></div>
+    <p class="espera" id="texto-espera">Estacione no bolsao e aguarde ser chamado para a doca.</p>
     <p class="espera">Se voce permitiu notificacoes, pode fechar o app e sera avisado quando for a sua vez. Caso contrario, deixe esta tela aberta.</p>
+    <button class="btn-cheguei hidden" id="btn-entreguei-nf" onclick="entregueiNF()">Entreguei a NF</button>
   </div>
 
   <div id="tela-chamado" class="hidden">
@@ -341,7 +343,18 @@ async function verificarStatus() {
   if (!res.ok) return;
   const m = await res.json();
   if (motoristaId !== idConsultado) return;
-  if (m.status === "chamado" || m.status === "na_doca") {
+  if (m.status === "aguardando") {
+    mostrarTela("tela-espera");
+    const chamadoNF = m.nf_entrega === "chamado";
+    document.getElementById("titulo-espera").textContent = chamadoNF ? "LEVE A NF AO ADM" : "DIRIJA-SE AO BOLSAO";
+    document.getElementById("texto-espera").textContent = chamadoNF
+      ? "O administrativo esta chamando voce. Leve a nota fiscal ao adm e toque no botao abaixo."
+      : m.nf_entrega === "entregue"
+        ? "NF entregue. Aguarde no bolsao ate ser chamado para a doca."
+        : "Estacione no bolsao e aguarde ser chamado para a doca.";
+    if (!entregandoNF) document.getElementById("btn-entreguei-nf").classList.toggle("hidden", !chamadoNF);
+    if (chamadoNF && !nfAdmAvisada) { nfAdmAvisada = true; tocarBip(); vibrar(); }
+  } else if (m.status === "chamado" || m.status === "na_doca") {
     const docaEl = document.getElementById("doca-numero");
     docaEl.textContent = m.doca || "-";
     docaEl.classList.toggle("longo", (m.doca || "").length > 3);
@@ -439,6 +452,29 @@ async function saindo() {
 
 let nfAvisada = false;
 let retirandoNF = false;
+let nfAdmAvisada = false;
+let entregandoNF = false;
+
+async function entregueiNF() {
+  if (!motoristaId || entregandoNF) return;
+  entregandoNF = true;
+  const btn = document.getElementById("btn-entreguei-nf");
+  btn.disabled = true;
+  btn.textContent = "Registrando...";
+  try {
+    const res = await fetch(`/api/motoristas/${motoristaId}/entreguei-nf`, { method: "POST", headers: headersMotorista() });
+    if (!res.ok) throw new Error("status " + res.status);
+    btn.classList.add("hidden");
+    document.getElementById("titulo-espera").textContent = "DIRIJA-SE AO BOLSAO";
+    document.getElementById("texto-espera").textContent = "NF entregue. Aguarde no bolsao ate ser chamado para a doca.";
+  } catch (e) {
+    alert("Nao foi possivel registrar, tente novamente.");
+  } finally {
+    entregandoNF = false;
+    btn.disabled = false;
+    btn.textContent = "Entreguei a NF";
+  }
+}
 
 async function retireiNF() {
   if (!motoristaId || retirandoNF) return;
@@ -474,6 +510,9 @@ function resetarParaNovaEntrada() {
   saindoEmAndamento = false;
   retirandoNF = false;
   nfAvisada = false;
+  nfAdmAvisada = false;
+  entregandoNF = false;
+  document.getElementById("btn-entreguei-nf").classList.add("hidden");
   const br = document.getElementById("btn-retirei");
   br.disabled = false;
   br.textContent = "Retirei a NF";

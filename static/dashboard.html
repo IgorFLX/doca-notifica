@@ -214,7 +214,7 @@
       <button data-t="preto">Preto</button>
     </div>
     <span class="espaco"></span>
-    <div class="meta-box">
+    <div class="meta-box" id="meta-box">
       Meta de espera
       <input type="number" id="meta-input" min="1" max="1440" />
       min
@@ -541,6 +541,7 @@ async function sair() {
   window.location.href = "/login";
 }
 
+fetch("/api/eu").then((r) => r.json()).then((d) => { if (d.somente_leitura) document.getElementById("meta-box").style.display = "none"; }).catch(() => {});
 setAtivo();
 carregar();
 setInterval(carregar, 15000);

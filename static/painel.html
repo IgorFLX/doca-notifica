@@ -262,6 +262,8 @@
 <script>
 const STATUS_LABEL = { aguardando: "No bolsao", chamado: "A caminho", na_doca: "Na doca", aguardando_nf: "Aguardando NF", nf_liberada: "NF liberada", saindo: "Saindo da doca" };
 
+let LEITURA = false;
+
 async function apiFetch(url, options) {
   const res = await fetch(url, options);
   if (res.status === 401) {
@@ -677,7 +679,7 @@ async function carregar() {
     }
 
     wrap.appendChild(botoesSecundarios(m));
-    tdAcao.appendChild(wrap);
+    if (!LEITURA) tdAcao.appendChild(wrap);
     tr.append(tdChegada, tdNome, tdCarga, tdFornecedor, tdTipo, tdStatus, tdDoca, tdEspera, tdAcao);
     rotular(tr, ["Chegada", "Motorista", "ID da carga", "Fornecedor", "Tipo", "Status", "Doca", "Espera", ""]);
     tbody.appendChild(tr);
@@ -863,8 +865,10 @@ if (window.EventSource) {
   origem.onmessage = () => atualizarAgora();
 }
 
-carregar();
-carregarHistorico();
+fetch("/api/eu").then((r) => r.json()).then((d) => { LEITURA = !!d.somente_leitura; }).catch(() => {}).finally(() => {
+  carregar();
+  carregarHistorico();
+});
 setInterval(carregar, 3000);
 setInterval(carregarHistorico, 15000);
 </script>

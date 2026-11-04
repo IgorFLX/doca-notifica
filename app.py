@@ -55,6 +55,7 @@ VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "mailto:admin@example.co
 
 SECRET_KEY = os.environ["SECRET_KEY"]
 CODIGO_CADASTRO = os.environ["CODIGO_CADASTRO"]
+CODIGO_VISUALIZACAO = os.environ.get("CODIGO_VISUALIZACAO", "")
 
 NO_CACHE = {"Cache-Control": "no-cache"}
 
@@ -76,6 +77,12 @@ def logado(request: Request) -> bool:
 def exigir_login_api(request: Request):
     if not logado(request):
         raise HTTPException(401, "Nao autenticado")
+
+
+def exigir_edicao(request: Request):
+    exigir_login_api(request)
+    if request.session.get("leitura"):
+        raise HTTPException(403, "Usuario somente de visualizacao")
 
 
 TENTATIVAS = defaultdict(deque)
@@ -171,10 +178,12 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 usuario TEXT UNIQUE NOT NULL,
                 senha_hash TEXT NOT NULL,
-                criado_em TIMESTAMPTZ NOT NULL
+                criado_em TIMESTAMPTZ NOT NULL,
+                somente_leitura BOOLEAN NOT NULL DEFAULT FALSE
             )
             """
         )
+        conn.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS somente_leitura BOOLEAN NOT NULL DEFAULT FALSE")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS operador_subscriptions (
@@ -388,7 +397,7 @@ def login(payload: LoginPayload, request: Request):
     checar_limite(*chaves)
     with get_db() as conn:
         row = conn.execute(
-            "SELECT senha_hash FROM usuarios WHERE usuario = %s", (usuario,)
+            "SELECT senha_hash, somente_leitura FROM usuarios WHERE usuario = %s", (usuario,)
         ).fetchone()
     if not row or not verificar_senha(payload.senha, row["senha_hash"]):
         registrar_falha(*chaves)
@@ -396,7 +405,13 @@ def login(payload: LoginPayload, request: Request):
     limpar_falhas(*chaves)
     request.session["auth"] = True
     request.session["usuario"] = usuario
+    request.session["leitura"] = bool(row["somente_leitura"])
     return {"ok": True}
+
+
+@app.get("/api/eu")
+def quem_sou_eu(request: Request, _: None = Depends(exigir_login_api)):
+    return {"usuario": request.session.get("usuario"), "somente_leitura": bool(request.session.get("leitura"))}
 
 
 @app.post("/api/logout")
@@ -411,7 +426,9 @@ def registrar(payload: RegistroPayload, request: Request):
     senha = payload.senha
     chave = f"reg:{_ip(request)}"
     checar_limite(chave)
-    if not hmac.compare_digest(payload.codigo.encode(), CODIGO_CADASTRO.encode()):
+    codigo = payload.codigo.encode()
+    leitura = bool(CODIGO_VISUALIZACAO) and hmac.compare_digest(codigo, CODIGO_VISUALIZACAO.encode())
+    if not leitura and not hmac.compare_digest(codigo, CODIGO_CADASTRO.encode()):
         registrar_falha(chave)
         raise HTTPException(401, "Codigo de cadastro invalido")
     if len(usuario) < 3:
@@ -425,11 +442,12 @@ def registrar(payload: RegistroPayload, request: Request):
         if existe:
             raise HTTPException(409, "Esse usuario ja existe")
         conn.execute(
-            "INSERT INTO usuarios (usuario, senha_hash, criado_em) VALUES (%s, %s, %s)",
-            (usuario, gerar_hash_senha(senha), datetime.now(timezone.utc)),
+            "INSERT INTO usuarios (usuario, senha_hash, criado_em, somente_leitura) VALUES (%s, %s, %s, %s)",
+            (usuario, gerar_hash_senha(senha), datetime.now(timezone.utc), leitura),
         )
     request.session["auth"] = True
     request.session["usuario"] = usuario
+    request.session["leitura"] = leitura
     return {"ok": True}
 
 
@@ -522,7 +540,7 @@ def dashboard_dados(periodo: str = "hoje", _: None = Depends(exigir_login_api)):
 
 
 @app.put("/api/config/meta")
-def definir_meta(payload: MetaPayload, _: None = Depends(exigir_login_api)):
+def definir_meta(payload: MetaPayload, _: None = Depends(exigir_edicao)):
     with get_db() as conn:
         conn.execute(
             """
@@ -553,7 +571,7 @@ def status_motorista(motorista_id: int, x_token: str | None = Header(default=Non
 
 
 @app.post("/api/motoristas/{motorista_id}/chamar")
-def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
+def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
     doca = " ".join(payload.doca.split()).upper()
     if doca not in DOCAS_VALIDAS:
         raise HTTPException(400, "Doca invalida")
@@ -572,7 +590,7 @@ def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depend
 
 
 @app.post("/api/motoristas/{motorista_id}/chamar-nf-adm")
-def chamar_nf_adm(motorista_id: int, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
+def chamar_nf_adm(motorista_id: int, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         cur = conn.execute(
             "UPDATE motoristas SET nf_entrega = 'chamado', nf_chamado_em = %s "
@@ -642,7 +660,7 @@ def motorista_saindo(motorista_id: int, x_token: str | None = Header(default=Non
 
 
 @app.post("/api/motoristas/{motorista_id}/liberar-nf")
-def liberar_nf(motorista_id: int, payload: LiberarNFPayload, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
+def liberar_nf(motorista_id: int, payload: LiberarNFPayload, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
     nf = normalizar_nf(payload.nf)
     if not nf:
         raise HTTPException(422, "Informe o numero da NF")
@@ -679,7 +697,7 @@ def retirei_nf(motorista_id: int, x_token: str | None = Header(default=None), _s
 
 
 @app.post("/api/motoristas/{motorista_id}/finalizar")
-def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
+def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         cur = conn.execute(
             "UPDATE motoristas SET status = 'finalizado', finalizado_em = COALESCE(finalizado_em, %s) WHERE id = %s AND status != 'finalizado' AND removido_em IS NULL",
@@ -693,7 +711,7 @@ def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_login_api), 
 
 
 @app.put("/api/motoristas/{motorista_id}")
-def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
+def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
     nome, carga, fornecedor, tipo = normalizar_motorista(payload)
     nf = normalizar_nf(payload.nf) or None
     with get_db() as conn:
@@ -707,7 +725,7 @@ def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depend
 
 
 @app.delete("/api/motoristas/{motorista_id}")
-def remover_motorista(motorista_id: int, _: None = Depends(exigir_login_api), _sig: None = Depends(sinalizar)):
+def remover_motorista(motorista_id: int, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         cur = conn.execute(
             "UPDATE motoristas SET removido_em = %s WHERE id = %s AND removido_em IS NULL",

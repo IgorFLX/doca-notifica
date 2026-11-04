@@ -138,8 +138,6 @@ def exigir_avancar(request: Request):
 TENTATIVAS = defaultdict(deque)
 JANELA_SEG = 600
 MAX_FALHAS = 8
-LOGIN_JANELA_SEG = 120
-LOGIN_MAX_FALHAS = 20
 
 
 def _ip(request: Request) -> str:
@@ -454,16 +452,12 @@ def operador_testar(background: BackgroundTasks, _: None = Depends(exigir_login_
 @app.post("/api/login")
 def login(payload: LoginPayload, request: Request):
     usuario = payload.usuario.strip().lower()
-    chaves = (f"u:{usuario}",)
-    checar_limite(*chaves, janela=LOGIN_JANELA_SEG, maximo=LOGIN_MAX_FALHAS)
     with get_db() as conn:
         row = conn.execute(
             "SELECT senha_hash FROM usuarios WHERE usuario = %s", (usuario,)
         ).fetchone()
     if not row or not verificar_senha(payload.senha, row["senha_hash"]):
-        registrar_falha(*chaves)
         raise HTTPException(401, "Usuario ou senha invalidos")
-    limpar_falhas(*chaves)
     request.session["auth"] = True
     request.session["usuario"] = usuario
     return {"ok": True}

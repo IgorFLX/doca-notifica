@@ -737,7 +737,7 @@ async function carregarHistorico() {
     tdFinalizado.textContent = m.finalizado_em ? new Date(m.finalizado_em).toLocaleString("pt-BR") : "-";
 
     const tdAcaoH = document.createElement("td");
-    tdAcaoH.appendChild(botoesSecundarios(m));
+    if (!LEITURA) tdAcaoH.appendChild(botoesSecundarios(m));
 
     tr.append(tdChegadaH, tdNome, tdCarga, tdFornecedor, tdTipoH, tdNF, tdDoca, tdEspera, tdFinalizado, tdAcaoH);
     rotular(tr, ["Chegada", "Motorista", "ID da carga", "Fornecedor", "Tipo", "NF", "Doca", "Espera", "Finalizado", ""]);

@@ -138,6 +138,8 @@ def exigir_avancar(request: Request):
 TENTATIVAS = defaultdict(deque)
 JANELA_SEG = 600
 MAX_FALHAS = 8
+LOGIN_JANELA_SEG = 120
+LOGIN_MAX_FALHAS = 20
 
 
 def _ip(request: Request) -> str:
@@ -145,13 +147,13 @@ def _ip(request: Request) -> str:
     return xff.split(",")[0].strip() or (request.client.host if request.client else "?")
 
 
-def checar_limite(*chaves: str):
+def checar_limite(*chaves: str, janela: int = JANELA_SEG, maximo: int = MAX_FALHAS):
     agora = time.monotonic()
     for chave in chaves:
         fila = TENTATIVAS[chave]
-        while fila and agora - fila[0] > JANELA_SEG:
+        while fila and agora - fila[0] > janela:
             fila.popleft()
-        if len(fila) >= MAX_FALHAS:
+        if len(fila) >= maximo:
             raise HTTPException(429, "Muitas tentativas. Aguarde alguns minutos e tente de novo.")
 
 
@@ -452,8 +454,8 @@ def operador_testar(background: BackgroundTasks, _: None = Depends(exigir_login_
 @app.post("/api/login")
 def login(payload: LoginPayload, request: Request):
     usuario = payload.usuario.strip().lower()
-    chaves = (f"ip:{_ip(request)}", f"u:{usuario}")
-    checar_limite(*chaves)
+    chaves = (f"u:{usuario}",)
+    checar_limite(*chaves, janela=LOGIN_JANELA_SEG, maximo=LOGIN_MAX_FALHAS)
     with get_db() as conn:
         row = conn.execute(
             "SELECT senha_hash FROM usuarios WHERE usuario = %s", (usuario,)

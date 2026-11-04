@@ -782,8 +782,6 @@ def avancar_status(motorista_id: int, request: Request, background: BackgroundTa
         if perfil in PERFIL_TIPO:
             if row["tipo"] != PERFIL_TIPO[perfil]:
                 raise HTTPException(403, "Este motorista e de outro tipo de operacao")
-            if status not in ("chamado", "na_doca"):
-                raise HTTPException(403, "Seu perfil so registra chegada e saida da doca")
         if status == "chamado":
             conn.execute("UPDATE motoristas SET status = 'na_doca', chegou_em = %s WHERE id = %s AND status = 'chamado'", (agora, motorista_id))
             aviso = ("Chegada registrada", "O administrativo registrou sua chegada na doca.")

@@ -922,8 +922,6 @@ async function liberarNF(id, input, btn) {
 
 function proximaEtapa(m) {
   if (!PERM.avancar) return null;
-  const conferente = !PERM.editar;
-  if (conferente && m.status !== "chamado" && m.status !== "na_doca") return null;
   if (m.status === "chamado") return "Marcar: chegou na doca";
   if (m.status === "na_doca") return m.tipo === "COLETA" ? "Marcar: saiu da doca" : "Marcar: saindo";
   if (m.status === "nf_liberada") return "Marcar: retirou a NF";

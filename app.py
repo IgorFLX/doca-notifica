@@ -696,6 +696,38 @@ def retirei_nf(motorista_id: int, x_token: str | None = Header(default=None), _s
     return {"ok": True}
 
 
+@app.post("/api/motoristas/{motorista_id}/avancar")
+def avancar_status(motorista_id: int, background: BackgroundTasks, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
+    """O operador executa a proxima etapa no lugar do motorista (quando ele esquece de tocar)."""
+    agora = datetime.now(timezone.utc)
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT status, tipo, nf_entrega FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Motorista nao encontrado")
+        status = row["status"]
+        if status == "chamado":
+            conn.execute("UPDATE motoristas SET status = 'na_doca', chegou_em = %s WHERE id = %s AND status = 'chamado'", (agora, motorista_id))
+            aviso = ("Chegada registrada", "O administrativo registrou sua chegada na doca.")
+        elif status == "na_doca" and row["tipo"] == "COLETA":
+            conn.execute("UPDATE motoristas SET status = 'aguardando_nf', saiu_doca_em = %s WHERE id = %s AND status = 'na_doca'", (agora, motorista_id))
+            aviso = ("Aguarde a NF", "O administrativo registrou sua saida da doca. Aguarde a liberacao da NF.")
+        elif status == "na_doca":
+            conn.execute("UPDATE motoristas SET status = 'saindo', saiu_doca_em = %s, finalizado_em = %s WHERE id = %s AND status = 'na_doca'", (agora, agora, motorista_id))
+            aviso = ("Saida registrada", "O administrativo registrou sua saida da doca.")
+        elif status == "nf_liberada":
+            conn.execute("UPDATE motoristas SET status = 'saindo', finalizado_em = %s WHERE id = %s AND status = 'nf_liberada'", (agora, motorista_id))
+            aviso = ("Retirada registrada", "O administrativo registrou a retirada da sua NF.")
+        elif status == "aguardando" and row["nf_entrega"] == "chamado":
+            conn.execute("UPDATE motoristas SET nf_entrega = 'entregue', nf_entregue_em = %s WHERE id = %s AND nf_entrega = 'chamado'", (agora, motorista_id))
+            aviso = ("NF entregue", "O administrativo registrou a entrega da sua NF.")
+        else:
+            raise HTTPException(409, "Nao ha proxima etapa para este motorista")
+    background.add_task(enviar_push, motorista_id, *aviso)
+    return {"ok": True}
+
+
 @app.post("/api/motoristas/{motorista_id}/finalizar")
 def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
     with get_db() as conn:

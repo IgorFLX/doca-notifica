@@ -678,6 +678,15 @@ async function carregar() {
       wrap.appendChild(btn);
     }
 
+    const proximo = proximaEtapa(m);
+    if (proximo) {
+      const btnAv = document.createElement("button");
+      btnAv.className = "btn-sec";
+      btnAv.textContent = proximo;
+      btnAv.title = "Registrar no lugar do motorista";
+      btnAv.onclick = () => avancar(m, proximo, btnAv);
+      wrap.appendChild(btnAv);
+    }
     wrap.appendChild(botoesSecundarios(m));
     if (!LEITURA) tdAcao.appendChild(wrap);
     tr.append(tdChegada, tdNome, tdCarga, tdFornecedor, tdTipo, tdStatus, tdDoca, tdEspera, tdAcao);
@@ -840,6 +849,22 @@ async function liberarNF(id, input, btn) {
   delete nfDigitada[id];
   carregar();
   carregarHistorico();
+}
+
+function proximaEtapa(m) {
+  if (m.status === "chamado") return "Marcar: chegou na doca";
+  if (m.status === "na_doca") return m.tipo === "COLETA" ? "Marcar: saiu da doca" : "Marcar: saindo";
+  if (m.status === "nf_liberada") return "Marcar: retirou a NF";
+  if (m.status === "aguardando" && m.nf_entrega === "chamado") return "Marcar: NF entregue";
+  return null;
+}
+
+async function avancar(m, texto, btn) {
+  if (!confirm(texto.replace("Marcar:", "Registrar para " + m.nome + " que") + "?")) return;
+  btn.disabled = true;
+  const res = await apiFetch(`/api/motoristas/${m.id}/avancar`, { method: "POST" });
+  if (!res.ok && res.status !== 409) alert("Nao foi possivel atualizar o status. Tente novamente.");
+  carregar();
 }
 
 async function finalizar(id) {

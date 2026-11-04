@@ -207,7 +207,7 @@
   <button class="nav-link" id="btn-avisos" onclick="alternarAvisos()">Ativar avisos</button>
   <span class="nav-link" id="perfil-nome" style="cursor:default"></span>
   <a class="nav-link" id="nav-usuarios" href="/usuarios" style="display:none">Usuarios</a>
-  <a class="nav-link" href="/dashboard">Dashboard</a>
+  <a class="nav-link" id="nav-dashboard" href="/dashboard">Dashboard</a>
   <button class="btn-sair" onclick="sair()">Sair</button>
 </header>
 <main>
@@ -986,6 +986,7 @@ fetch("/api/eu").then((r) => r.json()).then((d) => {
   PERM = { editar: !!d.pode_editar, remover: !!d.pode_remover, avancar: !!d.pode_avancar, tipo: d.tipo };
   document.getElementById("perfil-nome").textContent = (d.usuario || "") + " · " + (d.perfil_nome || "");
   if (d.admin) document.getElementById("nav-usuarios").style.display = "";
+  if (!d.ve_dashboard) document.getElementById("nav-dashboard").style.display = "none";
   if (d.tipo) { const f = document.getElementById("q-tipo"); f.value = d.tipo; f.disabled = true; const h = document.getElementById("f-tipo"); h.value = d.tipo; h.disabled = true; }
 }).catch(() => {}).finally(() => {
   carregar();

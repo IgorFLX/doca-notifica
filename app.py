@@ -65,6 +65,14 @@ PERFIS = {
     "conferente_coleta": "Conferente de coleta",
     "conferente_descarga": "Conferente de descarga",
 }
+PERFIS_SEM_DASHBOARD = {"conferente_coleta", "conferente_descarga"}
+# "usuario:perfil,usuario:perfil": aplicado na subida, so em quem ainda esta no perfil padrao (adm)
+PERFIS_USUARIOS = {}
+for _par in os.environ.get("PERFIS_USUARIOS", "").split(","):
+    if ":" in _par:
+        _u, _p = _par.rsplit(":", 1)
+        if _p.strip() in PERFIS:
+            PERFIS_USUARIOS[_u.strip().lower()] = _p.strip()
 PERFIS_EDITAM = {"admin", "adm"}
 PERFIS_AVANCAM = {"admin", "adm", "conferente_coleta", "conferente_descarga"}
 PERFIL_TIPO = {"conferente_coleta": "COLETA", "conferente_descarga": "DESCARGA"}
@@ -115,6 +123,12 @@ def exigir_remocao(request: Request):
 
 def exigir_admin(request: Request):
     _exigir_perfil(request, {"admin"}, "Somente o admin pode gerenciar usuarios")
+
+
+def exigir_dashboard(request: Request):
+    exigir_login_api(request)
+    if request.state.perfil in PERFIS_SEM_DASHBOARD:
+        raise HTTPException(403, "Seu perfil nao tem acesso ao dashboard")
 
 
 def exigir_avancar(request: Request):
@@ -222,6 +236,11 @@ def init_db():
         conn.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS somente_leitura BOOLEAN NOT NULL DEFAULT FALSE")
         conn.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS perfil TEXT")
         conn.execute("UPDATE usuarios SET perfil = CASE WHEN somente_leitura THEN 'visualizador' ELSE 'adm' END WHERE perfil IS NULL")
+        for _u, _p in PERFIS_USUARIOS.items():
+            conn.execute(
+                "UPDATE usuarios SET perfil = %s, somente_leitura = %s WHERE usuario = %s AND perfil = 'adm'",
+                (_p, _p == "visualizador", _u),
+            )
         if ADMIN_USUARIOS:
             conn.execute("UPDATE usuarios SET perfil = 'admin' WHERE usuario = ANY(%s)", (ADMIN_USUARIOS,))
         conn.execute(
@@ -461,6 +480,7 @@ def quem_sou_eu(request: Request, _: None = Depends(exigir_login_api)):
         "pode_avancar": perfil in PERFIS_AVANCAM,
         "somente_leitura": perfil not in PERFIS_AVANCAM,
         "tipo": PERFIL_TIPO.get(perfil),
+        "ve_dashboard": perfil not in PERFIS_SEM_DASHBOARD,
     }
 
 
@@ -589,7 +609,7 @@ class MetaPayload(BaseModel):
 
 
 @app.get("/api/dashboard")
-def dashboard_dados(periodo: str = "hoje", _: None = Depends(exigir_login_api)):
+def dashboard_dados(periodo: str = "hoje", _: None = Depends(exigir_dashboard)):
     with get_db() as conn:
         return indicadores.calcular_dashboard(conn, periodo)
 
@@ -608,7 +628,7 @@ def definir_meta(payload: MetaPayload, _: None = Depends(exigir_edicao)):
 
 
 @app.get("/api/exportar.csv")
-def exportar_csv(periodo: str = "hoje", _: None = Depends(exigir_login_api)):
+def exportar_csv(periodo: str = "hoje", _: None = Depends(exigir_dashboard)):
     with get_db() as conn:
         conteudo = indicadores.gerar_csv(conn, periodo)
     nome = f"motoristas_{periodo}_{datetime.now(indicadores.TZ):%Y%m%d_%H%M}.csv"
@@ -918,6 +938,10 @@ def painel(request: Request):
 def dashboard_page(request: Request):
     if not logado(request):
         return RedirectResponse("/login")
+    try:
+        exigir_dashboard(request)
+    except HTTPException:
+        return RedirectResponse("/")
     return FileResponse(BASE_DIR / "static" / "dashboard.html", headers=NO_CACHE)
 
 

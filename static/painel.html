@@ -70,6 +70,10 @@
   .panel-title:first-of-type { margin-top: 0; }
   .espera { font-variant-numeric: tabular-nums; color: #33405e; font-weight: 600; }
   tr.linha-historico td { color: #6b7488; }
+  .filtros-hist { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
+  .filtros-hist input, .filtros-hist select { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; background: #fff; }
+  .filtros-hist input[type=search] { flex: 1 1 260px; min-width: 200px; }
+  #f-contagem { font-size: 13px; color: rgba(255, 255, 255, .85); }
   table {
     width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px;
     overflow: hidden; box-shadow: 0 2px 10px rgba(16,24,60,.08);
@@ -231,6 +235,13 @@
   </div>
 
   <p class="panel-title" style="margin-top:30px">Historico</p>
+  <div class="filtros-hist">
+    <input type="search" id="f-busca" placeholder="Buscar motorista, carga, fornecedor ou NF" />
+    <select id="f-tipo"><option value="">Todos os tipos</option><option value="COLETA">Coleta</option><option value="DESCARGA">Descarga</option></select>
+    <input type="date" id="f-data" title="Dia da chegada" />
+    <button type="button" class="btn-sec" id="f-limpar">Limpar filtros</button>
+    <span id="f-contagem"></span>
+  </div>
   <table>
     <thead>
       <tr><th>Chegada</th><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Tipo</th><th>NF</th><th>Doca</th><th>Espera</th><th>Finalizado</th><th></th></tr>
@@ -695,11 +706,38 @@ async function carregar() {
   }
 }
 
+let historicoDados = [];
+
+function diaSP(iso) {
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+}
+
+function filtrarHistorico(lista) {
+  const q = document.getElementById("f-busca").value.trim().toLowerCase();
+  const tipo = document.getElementById("f-tipo").value;
+  const dia = document.getElementById("f-data").value;
+  return lista.filter((m) => {
+    if (tipo && m.tipo !== tipo) return false;
+    if (dia && diaSP(m.criado_em) !== dia) return false;
+    if (!q) return true;
+    return [m.nome, m.carga, m.fornecedor, m.nf].some((v) => (v || "").toLowerCase().includes(q));
+  });
+}
+
 async function carregarHistorico() {
   const res = await apiFetch("/api/motoristas/historico");
-  const motoristas = await res.json();
+  historicoDados = await res.json();
+  renderHistorico();
+}
+
+function renderHistorico() {
+  const motoristas = filtrarHistorico(historicoDados);
+  const filtrando = historicoDados.length !== motoristas.length;
+  document.getElementById("f-contagem").textContent = historicoDados.length
+    ? (filtrando ? `${motoristas.length} de ${historicoDados.length} registros` : `${historicoDados.length} registros`) : "";
   const tbody = document.getElementById("tbody-historico");
   const empty = document.getElementById("empty-historico");
+  empty.textContent = historicoDados.length ? "Nenhum registro com esses filtros." : "Nenhum registro no historico ainda.";
   tbody.innerHTML = "";
   empty.style.display = motoristas.length ? "none" : "block";
 
@@ -881,6 +919,16 @@ async function sair() {
 }
 
 document.getElementById("link-motorista").textContent = window.location.origin + "/motorista";
+
+for (const id of ["f-busca", "f-tipo", "f-data"]) {
+  document.getElementById(id).addEventListener("input", renderHistorico);
+}
+document.getElementById("f-limpar").onclick = () => {
+  document.getElementById("f-busca").value = "";
+  document.getElementById("f-tipo").value = "";
+  document.getElementById("f-data").value = "";
+  renderHistorico();
+};
 
 function atualizarAgora() { carregar().catch(() => {}); carregarHistorico().catch(() => {}); }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") atualizarAgora(); });

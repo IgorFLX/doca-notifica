@@ -448,7 +448,7 @@ function renderDocas(d) {
   alvo.replaceChildren();
   for (const x of d.por_doca) {
     const c = el("div", "card");
-    c.append(el("div", "doca-nome", "Doca " + x.doca));
+    c.append(el("div", "doca-nome", /^[AB]\d/.test(x.doca) ? "Doca " + x.doca : x.doca));
     const fundo = el("div", "fundo");
     const p = el("div", "preenchido");
     p.style.width = (total ? (x.n / total) * 100 : 0) + "%";

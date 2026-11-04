@@ -8,7 +8,10 @@ from zoneinfo import ZoneInfo
 TZ_NOME = "America/Sao_Paulo"
 TZ = ZoneInfo(TZ_NOME)
 META_PADRAO_MIN = 30
-DOCAS = ["A1", "A2", "A3", "A4 EAD", "B1", "B2", "B3", "B4"]
+DOCAS = [
+    "Recebimento 1", "Recebimento 2", "Recebimento 3", "Recebimento EAD",
+    "Expedição 1", "Expedição 2", "Expedição 3", "Expedição EAD",
+]
 PERIODOS = {"hoje": 1, "7d": 7, "30d": 30}
 
 ATIVO = "removido_em IS NULL"

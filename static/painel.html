@@ -281,7 +281,7 @@
 <script>
 const STATUS_LABEL = { aguardando: "No bolsao", chamado: "A caminho", na_doca: "Na doca", aguardando_nf: "Aguardando NF", nf_liberada: "NF liberada", saindo: "Saindo da doca" };
 
-let PERM = { editar: false, remover: false, avancar: false, tipo: null };
+let PERM = { editar: false, remover: false, avancar: false, chamar: false, tipo: null };
 
 async function apiFetch(url, options) {
   const res = await fetch(url, options);
@@ -293,8 +293,8 @@ async function apiFetch(url, options) {
 }
 
 const DOCAS = [
-  { grupo: "Docas A", itens: ["A1", "A2", "A3", "A4 EAD"] },
-  { grupo: "Docas B", itens: ["B1", "B2", "B3", "B4"] },
+  { grupo: "Recebimento", itens: ["Recebimento 1", "Recebimento 2", "Recebimento 3", "Recebimento EAD"] },
+  { grupo: "Expedição", itens: ["Expedição 1", "Expedição 2", "Expedição 3", "Expedição EAD"] },
 ];
 
 function rotuloTipo(t) {
@@ -664,12 +664,12 @@ async function carregar() {
         for (const doca of g.itens) {
           const opt = document.createElement("option");
           opt.value = doca;
-          opt.textContent = "Doca " + doca;
+          opt.textContent = doca;
           og.appendChild(opt);
         }
         select.appendChild(og);
       }
-      select.value = docaEscolhida[m.id] || "A1";
+      select.value = docaEscolhida[m.id] || (m.tipo === "COLETA" ? "Expedição 1" : "Recebimento 1");
       select.addEventListener("focus", () => { seletorEmUsoAte = Date.now() + 8000; });
       select.addEventListener("change", () => {
         docaEscolhida[m.id] = select.value;
@@ -724,10 +724,13 @@ async function carregar() {
       if (btnAv) wrap.appendChild(btnAv);
       wrap.appendChild(botoesSecundarios(m));
       tdAcao.appendChild(wrap);
-    } else if (btnAv) {
+    } else if (btnAv || (PERM.chamar && m.status === "aguardando")) {
       const soAvancar = document.createElement("div");
       soAvancar.className = "row-actions";
-      soAvancar.appendChild(btnAv);
+      if (PERM.chamar && m.status === "aguardando") {
+        soAvancar.append(wrap.children[0], wrap.children[1]);
+      }
+      if (btnAv) soAvancar.appendChild(btnAv);
       tdAcao.appendChild(soAvancar);
     }
     tr.append(tdChegada, tdNome, tdCarga, tdFornecedor, tdTipo, tdStatus, tdDoca, tdEspera, tdAcao);
@@ -981,7 +984,7 @@ if (window.EventSource) {
 }
 
 fetch("/api/eu").then((r) => r.json()).then((d) => {
-  PERM = { editar: !!d.pode_editar, remover: !!d.pode_remover, avancar: !!d.pode_avancar, tipo: d.tipo };
+  PERM = { editar: !!d.pode_editar, remover: !!d.pode_remover, avancar: !!d.pode_avancar, chamar: !!d.pode_chamar, tipo: d.tipo };
   document.getElementById("perfil-nome").textContent = (d.usuario || "") + " · " + (d.perfil_nome || "");
   if (d.admin) document.getElementById("nav-usuarios").style.display = "";
   if (!d.ve_dashboard) document.getElementById("nav-dashboard").style.display = "none";

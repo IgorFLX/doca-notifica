@@ -42,7 +42,10 @@ import indicadores
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
-DOCAS_VALIDAS = {"A1", "A2", "A3", "A4 EAD", "B1", "B2", "B3", "B4"}
+DOCAS_VALIDAS = {
+    "Recebimento 1", "Recebimento 2", "Recebimento 3", "Recebimento EAD",
+    "Expedição 1", "Expedição 2", "Expedição 3", "Expedição EAD",
+}
 TIPOS_VALIDOS = {"COLETA", "DESCARGA"}
 
 BASE_DIR = Path(__file__).parent
@@ -74,6 +77,7 @@ for _par in os.environ.get("PERFIS_USUARIOS", "").split(","):
         if _p.strip() in PERFIS:
             PERFIS_USUARIOS[_u.strip().lower()] = _p.strip()
 PERFIS_EDITAM = {"admin", "adm"}
+PERFIS_CHAMAM = {"admin", "adm", "conferente_coleta", "conferente_descarga"}
 PERFIS_AVANCAM = {"admin", "adm", "conferente_coleta", "conferente_descarga"}
 PERFIL_TIPO = {"conferente_coleta": "COLETA", "conferente_descarga": "DESCARGA"}
 
@@ -129,6 +133,10 @@ def exigir_dashboard(request: Request):
     exigir_login_api(request)
     if request.state.perfil in PERFIS_SEM_DASHBOARD:
         raise HTTPException(403, "Seu perfil nao tem acesso ao dashboard")
+
+
+def exigir_chamar(request: Request):
+    _exigir_perfil(request, PERFIS_CHAMAM, "Seu perfil nao pode chamar motoristas")
 
 
 def exigir_avancar(request: Request):
@@ -477,6 +485,7 @@ def quem_sou_eu(request: Request, _: None = Depends(exigir_login_api)):
         "somente_leitura": perfil not in PERFIS_AVANCAM,
         "tipo": PERFIL_TIPO.get(perfil),
         "ve_dashboard": perfil not in PERFIS_SEM_DASHBOARD,
+        "pode_chamar": perfil in PERFIS_CHAMAM,
     }
 
 
@@ -642,11 +651,16 @@ def status_motorista(motorista_id: int, x_token: str | None = Header(default=Non
 
 
 @app.post("/api/motoristas/{motorista_id}/chamar")
-def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
-    doca = " ".join(payload.doca.split()).upper()
+def chamar_motorista(motorista_id: int, payload: ChamarPayload, request: Request, _: None = Depends(exigir_chamar), _sig: None = Depends(sinalizar)):
+    doca = " ".join(payload.doca.split())
     if doca not in DOCAS_VALIDAS:
         raise HTTPException(400, "Doca invalida")
+    tipo_perfil = PERFIL_TIPO.get(request.state.perfil)
     with get_db() as conn:
+        if tipo_perfil:
+            dono = conn.execute("SELECT tipo FROM motoristas WHERE id = %s AND removido_em IS NULL", (motorista_id,)).fetchone()
+            if dono and dono["tipo"] != tipo_perfil:
+                raise HTTPException(403, "Este motorista e de outro tipo de operacao")
         cur = conn.execute(
             "UPDATE motoristas SET status = 'chamado', doca = %s, chamado_em = %s WHERE id = %s AND status = 'aguardando' AND removido_em IS NULL",
             (doca, datetime.now(timezone.utc), motorista_id),
@@ -656,7 +670,7 @@ def chamar_motorista(motorista_id: int, payload: ChamarPayload, _: None = Depend
             if not existe:
                 raise HTTPException(404, "Motorista nao encontrado")
             raise HTTPException(409, "Motorista ja foi chamado")
-    enviar_push(motorista_id, "Va para a doca", f"Doca {doca} - dirija-se ate la agora.")
+    enviar_push(motorista_id, "Va para a doca", f"{doca} - dirija-se ate la agora.")
     return {"ok": True}
 
 
@@ -782,6 +796,8 @@ def avancar_status(motorista_id: int, request: Request, background: BackgroundTa
         if perfil in PERFIL_TIPO:
             if row["tipo"] != PERFIL_TIPO[perfil]:
                 raise HTTPException(403, "Este motorista e de outro tipo de operacao")
+            if status not in ("chamado", "na_doca"):
+                raise HTTPException(403, "A parte da NF e feita pelo administrativo")
         if status == "chamado":
             conn.execute("UPDATE motoristas SET status = 'na_doca', chegou_em = %s WHERE id = %s AND status = 'chamado'", (agora, motorista_id))
             aviso = ("Chegada registrada", "O administrativo registrou sua chegada na doca.")

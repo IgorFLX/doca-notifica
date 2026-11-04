@@ -541,7 +541,7 @@ async function sair() {
   window.location.href = "/login";
 }
 
-fetch("/api/eu").then((r) => r.json()).then((d) => { if (d.somente_leitura) document.getElementById("meta-box").style.display = "none"; }).catch(() => {});
+fetch("/api/eu").then((r) => r.json()).then((d) => { if (!d.pode_editar) document.getElementById("meta-box").style.display = "none"; }).catch(() => {});
 setAtivo();
 carregar();
 setInterval(carregar, 15000);

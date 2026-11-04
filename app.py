@@ -56,6 +56,18 @@ VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "mailto:admin@example.co
 SECRET_KEY = os.environ["SECRET_KEY"]
 CODIGO_CADASTRO = os.environ["CODIGO_CADASTRO"]
 CODIGO_VISUALIZACAO = os.environ.get("CODIGO_VISUALIZACAO", "")
+ADMIN_USUARIOS = [u.strip().lower() for u in os.environ.get("ADMIN_USUARIOS", "").split(",") if u.strip()]
+
+PERFIS = {
+    "admin": "Admin",
+    "adm": "Administrativo",
+    "visualizador": "Visualizador",
+    "conferente_coleta": "Conferente de coleta",
+    "conferente_descarga": "Conferente de descarga",
+}
+PERFIS_EDITAM = {"admin", "adm"}
+PERFIS_AVANCAM = {"admin", "adm", "conferente_coleta", "conferente_descarga"}
+PERFIL_TIPO = {"conferente_coleta": "COLETA", "conferente_descarga": "DESCARGA"}
 
 NO_CACHE = {"Cache-Control": "no-cache"}
 
@@ -77,12 +89,36 @@ def logado(request: Request) -> bool:
 def exigir_login_api(request: Request):
     if not logado(request):
         raise HTTPException(401, "Nao autenticado")
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT perfil FROM usuarios WHERE usuario = %s", (request.session.get("usuario"),)
+        ).fetchone()
+    if not row:
+        request.session.clear()
+        raise HTTPException(401, "Nao autenticado")
+    request.state.perfil = row["perfil"]
+
+
+def _exigir_perfil(request: Request, permitidos, msg: str):
+    exigir_login_api(request)
+    if request.state.perfil not in permitidos:
+        raise HTTPException(403, msg)
 
 
 def exigir_edicao(request: Request):
-    exigir_login_api(request)
-    if request.session.get("leitura"):
-        raise HTTPException(403, "Usuario somente de visualizacao")
+    _exigir_perfil(request, PERFIS_EDITAM, "Seu perfil nao pode alterar informacoes")
+
+
+def exigir_remocao(request: Request):
+    _exigir_perfil(request, {"admin"}, "Somente o admin pode remover")
+
+
+def exigir_admin(request: Request):
+    _exigir_perfil(request, {"admin"}, "Somente o admin pode gerenciar usuarios")
+
+
+def exigir_avancar(request: Request):
+    _exigir_perfil(request, PERFIS_AVANCAM, "Seu perfil nao pode alterar informacoes")
 
 
 TENTATIVAS = defaultdict(deque)
@@ -184,6 +220,10 @@ def init_db():
             """
         )
         conn.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS somente_leitura BOOLEAN NOT NULL DEFAULT FALSE")
+        conn.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS perfil TEXT")
+        conn.execute("UPDATE usuarios SET perfil = CASE WHEN somente_leitura THEN 'visualizador' ELSE 'adm' END WHERE perfil IS NULL")
+        if ADMIN_USUARIOS:
+            conn.execute("UPDATE usuarios SET perfil = 'admin' WHERE usuario = ANY(%s)", (ADMIN_USUARIOS,))
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS operador_subscriptions (
@@ -397,7 +437,7 @@ def login(payload: LoginPayload, request: Request):
     checar_limite(*chaves)
     with get_db() as conn:
         row = conn.execute(
-            "SELECT senha_hash, somente_leitura FROM usuarios WHERE usuario = %s", (usuario,)
+            "SELECT senha_hash FROM usuarios WHERE usuario = %s", (usuario,)
         ).fetchone()
     if not row or not verificar_senha(payload.senha, row["senha_hash"]):
         registrar_falha(*chaves)
@@ -405,13 +445,23 @@ def login(payload: LoginPayload, request: Request):
     limpar_falhas(*chaves)
     request.session["auth"] = True
     request.session["usuario"] = usuario
-    request.session["leitura"] = bool(row["somente_leitura"])
     return {"ok": True}
 
 
 @app.get("/api/eu")
 def quem_sou_eu(request: Request, _: None = Depends(exigir_login_api)):
-    return {"usuario": request.session.get("usuario"), "somente_leitura": bool(request.session.get("leitura"))}
+    perfil = request.state.perfil
+    return {
+        "usuario": request.session.get("usuario"),
+        "perfil": perfil,
+        "perfil_nome": PERFIS.get(perfil, perfil),
+        "admin": perfil == "admin",
+        "pode_editar": perfil in PERFIS_EDITAM,
+        "pode_remover": perfil == "admin",
+        "pode_avancar": perfil in PERFIS_AVANCAM,
+        "somente_leitura": perfil not in PERFIS_AVANCAM,
+        "tipo": PERFIL_TIPO.get(perfil),
+    }
 
 
 @app.post("/api/logout")
@@ -442,12 +492,11 @@ def registrar(payload: RegistroPayload, request: Request):
         if existe:
             raise HTTPException(409, "Esse usuario ja existe")
         conn.execute(
-            "INSERT INTO usuarios (usuario, senha_hash, criado_em, somente_leitura) VALUES (%s, %s, %s, %s)",
-            (usuario, gerar_hash_senha(senha), datetime.now(timezone.utc), leitura),
+            "INSERT INTO usuarios (usuario, senha_hash, criado_em, somente_leitura, perfil) VALUES (%s, %s, %s, %s, %s)",
+            (usuario, gerar_hash_senha(senha), datetime.now(timezone.utc), leitura, "visualizador" if leitura else "adm"),
         )
     request.session["auth"] = True
     request.session["usuario"] = usuario
-    request.session["leitura"] = leitura
     return {"ok": True}
 
 
@@ -510,21 +559,27 @@ def salvar_subscription(motorista_id: int, payload: SubscriptionPayload, x_token
 
 
 @app.get("/api/motoristas")
-def listar_motoristas(_: None = Depends(exigir_login_api)):
+def listar_motoristas(request: Request, _: None = Depends(exigir_login_api)):
+    tipo = PERFIL_TIPO.get(request.state.perfil)
     with get_db() as conn:
         indicadores.auto_finalizar(conn)
         rows = conn.execute(
-            "SELECT * FROM motoristas WHERE status != 'finalizado' AND removido_em IS NULL ORDER BY criado_em ASC"
+            "SELECT * FROM motoristas WHERE status != 'finalizado' AND removido_em IS NULL "
+            "AND (%s::text IS NULL OR tipo = %s) ORDER BY criado_em ASC",
+            (tipo, tipo),
         ).fetchall()
         return [limpar(r) for r in rows]
 
 
 @app.get("/api/motoristas/historico")
-def historico_motoristas(_: None = Depends(exigir_login_api)):
+def historico_motoristas(request: Request, _: None = Depends(exigir_login_api)):
+    tipo = PERFIL_TIPO.get(request.state.perfil)
     with get_db() as conn:
         indicadores.auto_finalizar(conn)
         rows = conn.execute(
-            "SELECT * FROM motoristas WHERE status = 'finalizado' AND removido_em IS NULL ORDER BY criado_em DESC LIMIT 200"
+            "SELECT * FROM motoristas WHERE status = 'finalizado' AND removido_em IS NULL "
+            "AND (%s::text IS NULL OR tipo = %s) ORDER BY criado_em DESC LIMIT 200",
+            (tipo, tipo),
         ).fetchall()
         return [limpar(r) for r in rows]
 
@@ -697,7 +752,7 @@ def retirei_nf(motorista_id: int, x_token: str | None = Header(default=None), _s
 
 
 @app.post("/api/motoristas/{motorista_id}/avancar")
-def avancar_status(motorista_id: int, background: BackgroundTasks, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
+def avancar_status(motorista_id: int, request: Request, background: BackgroundTasks, _: None = Depends(exigir_avancar), _sig: None = Depends(sinalizar)):
     """O operador executa a proxima etapa no lugar do motorista (quando ele esquece de tocar)."""
     agora = datetime.now(timezone.utc)
     with get_db() as conn:
@@ -707,6 +762,12 @@ def avancar_status(motorista_id: int, background: BackgroundTasks, _: None = Dep
         if not row:
             raise HTTPException(404, "Motorista nao encontrado")
         status = row["status"]
+        perfil = request.state.perfil
+        if perfil in PERFIL_TIPO:
+            if row["tipo"] != PERFIL_TIPO[perfil]:
+                raise HTTPException(403, "Este motorista e de outro tipo de operacao")
+            if status not in ("chamado", "na_doca"):
+                raise HTTPException(403, "Seu perfil so registra chegada e saida da doca")
         if status == "chamado":
             conn.execute("UPDATE motoristas SET status = 'na_doca', chegou_em = %s WHERE id = %s AND status = 'chamado'", (agora, motorista_id))
             aviso = ("Chegada registrada", "O administrativo registrou sua chegada na doca.")
@@ -757,7 +818,7 @@ def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depend
 
 
 @app.delete("/api/motoristas/{motorista_id}")
-def remover_motorista(motorista_id: int, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
+def remover_motorista(motorista_id: int, _: None = Depends(exigir_remocao), _sig: None = Depends(sinalizar)):
     with get_db() as conn:
         cur = conn.execute(
             "UPDATE motoristas SET removido_em = %s WHERE id = %s AND removido_em IS NULL",
@@ -766,6 +827,84 @@ def remover_motorista(motorista_id: int, _: None = Depends(exigir_edicao), _sig:
         if cur.rowcount == 0:
             raise HTTPException(404, "Motorista nao encontrado")
         return {"ok": True}
+
+
+class NovoUsuario(BaseModel):
+    usuario: str = Field(min_length=3, max_length=50)
+    senha: str = Field(min_length=6, max_length=200)
+    perfil: str
+
+
+class EditarUsuario(BaseModel):
+    perfil: str | None = None
+    senha: str | None = Field(default=None, min_length=6, max_length=200)
+
+
+@app.get("/api/usuarios")
+def listar_usuarios(_: None = Depends(exigir_admin)):
+    with get_db() as conn:
+        rows = conn.execute("SELECT id, usuario, perfil, criado_em FROM usuarios ORDER BY criado_em ASC").fetchall()
+    return {"usuarios": rows, "perfis": PERFIS}
+
+
+@app.post("/api/usuarios")
+def criar_usuario(payload: NovoUsuario, _: None = Depends(exigir_admin)):
+    usuario = payload.usuario.strip().lower()
+    if len(usuario) < 3:
+        raise HTTPException(400, "Usuario deve ter pelo menos 3 caracteres")
+    if payload.perfil not in PERFIS:
+        raise HTTPException(400, "Perfil invalido")
+    with get_db() as conn:
+        if conn.execute("SELECT 1 FROM usuarios WHERE usuario = %s", (usuario,)).fetchone():
+            raise HTTPException(409, "Esse usuario ja existe")
+        conn.execute(
+            "INSERT INTO usuarios (usuario, senha_hash, criado_em, somente_leitura, perfil) VALUES (%s, %s, %s, %s, %s)",
+            (usuario, gerar_hash_senha(payload.senha), datetime.now(timezone.utc), payload.perfil == "visualizador", payload.perfil),
+        )
+    return {"ok": True}
+
+
+@app.put("/api/usuarios/{usuario_id}")
+def editar_usuario(usuario_id: int, payload: EditarUsuario, request: Request, _: None = Depends(exigir_admin)):
+    with get_db() as conn:
+        alvo = conn.execute("SELECT usuario FROM usuarios WHERE id = %s", (usuario_id,)).fetchone()
+        if not alvo:
+            raise HTTPException(404, "Usuario nao encontrado")
+        if payload.perfil is not None:
+            if payload.perfil not in PERFIS:
+                raise HTTPException(400, "Perfil invalido")
+            if alvo["usuario"] == request.session.get("usuario") and payload.perfil != "admin":
+                raise HTTPException(400, "Voce nao pode tirar o seu proprio acesso de admin")
+            conn.execute(
+                "UPDATE usuarios SET perfil = %s, somente_leitura = %s WHERE id = %s",
+                (payload.perfil, payload.perfil == "visualizador", usuario_id),
+            )
+        if payload.senha:
+            conn.execute("UPDATE usuarios SET senha_hash = %s WHERE id = %s", (gerar_hash_senha(payload.senha), usuario_id))
+    return {"ok": True}
+
+
+@app.delete("/api/usuarios/{usuario_id}")
+def remover_usuario(usuario_id: int, request: Request, _: None = Depends(exigir_admin)):
+    with get_db() as conn:
+        alvo = conn.execute("SELECT usuario FROM usuarios WHERE id = %s", (usuario_id,)).fetchone()
+        if not alvo:
+            raise HTTPException(404, "Usuario nao encontrado")
+        if alvo["usuario"] == request.session.get("usuario"):
+            raise HTTPException(400, "Voce nao pode remover o proprio usuario")
+        conn.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
+    return {"ok": True}
+
+
+@app.get("/usuarios")
+def usuarios_page(request: Request):
+    if not logado(request):
+        return RedirectResponse("/login")
+    try:
+        exigir_admin(request)
+    except HTTPException:
+        return RedirectResponse("/")
+    return FileResponse(BASE_DIR / "static" / "usuarios.html", headers=NO_CACHE)
 
 
 @app.get("/")

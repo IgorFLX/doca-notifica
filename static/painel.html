@@ -205,6 +205,8 @@
   <button class="nav-link" id="btn-instalar" hidden>Instalar app</button>
   <button class="nav-link" id="btn-som" onclick="ativarSom()">Ativar som</button>
   <button class="nav-link" id="btn-avisos" onclick="alternarAvisos()">Ativar avisos</button>
+  <span class="nav-link" id="perfil-nome" style="cursor:default"></span>
+  <a class="nav-link" id="nav-usuarios" href="/usuarios" style="display:none">Usuarios</a>
   <a class="nav-link" href="/dashboard">Dashboard</a>
   <button class="btn-sair" onclick="sair()">Sair</button>
 </header>
@@ -279,7 +281,7 @@
 <script>
 const STATUS_LABEL = { aguardando: "No bolsao", chamado: "A caminho", na_doca: "Na doca", aguardando_nf: "Aguardando NF", nf_liberada: "NF liberada", saindo: "Saindo da doca" };
 
-let LEITURA = false;
+let PERM = { editar: false, remover: false, avancar: false, tipo: null };
 
 async function apiFetch(url, options) {
   const res = await fetch(url, options);
@@ -710,16 +712,24 @@ async function carregar() {
     }
 
     const proximo = proximaEtapa(m);
+    let btnAv = null;
     if (proximo) {
-      const btnAv = document.createElement("button");
+      btnAv = document.createElement("button");
       btnAv.className = "btn-sec";
       btnAv.textContent = proximo;
-      btnAv.title = "Registrar no lugar do motorista";
+      btnAv.title = "Registrar a etapa do motorista";
       btnAv.onclick = () => avancar(m, proximo, btnAv);
-      wrap.appendChild(btnAv);
     }
-    wrap.appendChild(botoesSecundarios(m));
-    if (!LEITURA) tdAcao.appendChild(wrap);
+    if (PERM.editar) {
+      if (btnAv) wrap.appendChild(btnAv);
+      wrap.appendChild(botoesSecundarios(m));
+      tdAcao.appendChild(wrap);
+    } else if (btnAv) {
+      const soAvancar = document.createElement("div");
+      soAvancar.className = "row-actions";
+      soAvancar.appendChild(btnAv);
+      tdAcao.appendChild(soAvancar);
+    }
     tr.append(tdChegada, tdNome, tdCarga, tdFornecedor, tdTipo, tdStatus, tdDoca, tdEspera, tdAcao);
     rotular(tr, ["Chegada", "Motorista", "ID da carga", "Fornecedor", "Tipo", "Status", "Doca", "Espera", ""]);
     tbody.appendChild(tr);
@@ -795,7 +805,7 @@ function renderHistorico() {
     tdFinalizado.textContent = m.finalizado_em ? new Date(m.finalizado_em).toLocaleString("pt-BR") : "-";
 
     const tdAcaoH = document.createElement("td");
-    if (!LEITURA) tdAcaoH.appendChild(botoesSecundarios(m));
+    if (PERM.editar) tdAcaoH.appendChild(botoesSecundarios(m));
 
     tr.append(tdChegadaH, tdNome, tdCarga, tdFornecedor, tdTipoH, tdNF, tdDoca, tdEspera, tdFinalizado, tdAcaoH);
     rotular(tr, ["Chegada", "Motorista", "ID da carga", "Fornecedor", "Tipo", "NF", "Doca", "Espera", "Finalizado", ""]);
@@ -814,7 +824,8 @@ function botoesSecundarios(m) {
   remover.className = "btn-sec btn-sec-perigo";
   remover.textContent = "Remover";
   remover.onclick = () => removerMotorista(m);
-  box.append(editar, remover);
+  if (PERM.editar) box.appendChild(editar);
+  if (PERM.remover) box.appendChild(remover);
   return box;
 }
 
@@ -910,6 +921,9 @@ async function liberarNF(id, input, btn) {
 }
 
 function proximaEtapa(m) {
+  if (!PERM.avancar) return null;
+  const conferente = !PERM.editar;
+  if (conferente && m.status !== "chamado" && m.status !== "na_doca") return null;
   if (m.status === "chamado") return "Marcar: chegou na doca";
   if (m.status === "na_doca") return m.tipo === "COLETA" ? "Marcar: saiu da doca" : "Marcar: saindo";
   if (m.status === "nf_liberada") return "Marcar: retirou a NF";
@@ -968,7 +982,12 @@ if (window.EventSource) {
   origem.onmessage = () => atualizarAgora();
 }
 
-fetch("/api/eu").then((r) => r.json()).then((d) => { LEITURA = !!d.somente_leitura; }).catch(() => {}).finally(() => {
+fetch("/api/eu").then((r) => r.json()).then((d) => {
+  PERM = { editar: !!d.pode_editar, remover: !!d.pode_remover, avancar: !!d.pode_avancar, tipo: d.tipo };
+  document.getElementById("perfil-nome").textContent = (d.usuario || "") + " · " + (d.perfil_nome || "");
+  if (d.admin) document.getElementById("nav-usuarios").style.display = "";
+  if (d.tipo) { const f = document.getElementById("q-tipo"); f.value = d.tipo; f.disabled = true; const h = document.getElementById("f-tipo"); h.value = d.tipo; h.disabled = true; }
+}).catch(() => {}).finally(() => {
   carregar();
   carregarHistorico();
 });

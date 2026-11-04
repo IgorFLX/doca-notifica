@@ -212,6 +212,12 @@
   <div class="topo">
   <section>
   <p class="panel-title">Fila de motoristas</p>
+  <div class="filtros-hist">
+    <input type="search" id="q-busca" placeholder="Buscar motorista, carga, fornecedor ou NF" />
+    <select id="q-tipo"><option value="">Todos os tipos</option><option value="COLETA">Coleta</option><option value="DESCARGA">Descarga</option></select>
+    <select id="q-status"><option value="">Todos os status</option><option value="aguardando">No bolsao</option><option value="chamado">A caminho</option><option value="na_doca">Na doca</option><option value="aguardando_nf">Aguardando NF</option><option value="nf_liberada">NF liberada</option><option value="saindo">Saindo da doca</option></select>
+    <button type="button" class="btn-sec" id="q-limpar">Limpar filtros</button>
+  </div>
   <table>
     <thead>
       <tr><th>Chegada</th><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Tipo</th><th>Status</th><th>Doca</th><th>Espera</th><th>Acao</th></tr>
@@ -579,6 +585,18 @@ const docaEscolhida = {};
 const nfDigitada = {};
 let seletorEmUsoAte = 0;
 
+function filtrarFila(lista) {
+  const q = document.getElementById("q-busca").value.trim().toLowerCase();
+  const tipo = document.getElementById("q-tipo").value;
+  const status = document.getElementById("q-status").value;
+  return lista.filter((m) => {
+    if (tipo && m.tipo !== tipo) return false;
+    if (status && m.status !== status) return false;
+    if (!q) return true;
+    return [m.nome, m.carga, m.fornecedor, m.nf].some((v) => (v || "").toLowerCase().includes(q));
+  });
+}
+
 async function carregar() {
   const res = await apiFetch("/api/motoristas");
   const motoristas = await res.json();
@@ -588,10 +606,12 @@ async function carregar() {
   if (emUso && Date.now() < seletorEmUsoAte) return;
   const tbody = document.getElementById("tbody");
   const empty = document.getElementById("empty");
+  const visiveis = filtrarFila(motoristas);
   tbody.innerHTML = "";
-  empty.style.display = motoristas.length ? "none" : "block";
+  empty.textContent = motoristas.length ? "Nenhum motorista com esses filtros." : "Nenhum motorista na fila.";
+  empty.style.display = visiveis.length ? "none" : "block";
 
-  for (const m of motoristas) {
+  for (const m of visiveis) {
     const tr = document.createElement("tr");
     if (destacar.has(m.id)) tr.classList.add("linha-nova");
 
@@ -928,6 +948,16 @@ document.getElementById("f-limpar").onclick = () => {
   document.getElementById("f-tipo").value = "";
   document.getElementById("f-data").value = "";
   renderHistorico();
+};
+
+for (const id of ["q-busca", "q-tipo", "q-status"]) {
+  document.getElementById(id).addEventListener("input", () => carregar().catch(() => {}));
+}
+document.getElementById("q-limpar").onclick = () => {
+  document.getElementById("q-busca").value = "";
+  document.getElementById("q-tipo").value = "";
+  document.getElementById("q-status").value = "";
+  carregar().catch(() => {});
 };
 
 function atualizarAgora() { carregar().catch(() => {}); carregarHistorico().catch(() => {}); }

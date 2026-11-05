@@ -151,6 +151,72 @@
   .tag-pouco { font-size: 10px; font-weight: 600; background: var(--g100); color: var(--g600); padding: 2px 7px; border-radius: 999px; margin-left: 8px; letter-spacing: .02em; }
 
 
+
+  /* ---- Coleta x Descarga ---- */
+  :root { --c-desc: #3b82f6; --c-col: #f5a623; }
+  .tipos-box { padding: 22px; }
+  .tipos-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .tipos-topo b { font-size: 30px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tipos-topo span { font-size: 12px; color: var(--g600); }
+  .tipos-barra { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: var(--g100); gap: 3px; }
+  .tipos-barra i { display: block; height: 100%; min-width: 6px; transition: width .4s ease; }
+  .tipos-colunas { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+  .tipo-col { padding: 14px 16px; border-radius: 12px; background: var(--g100); border-top: 3px solid var(--cor); }
+  .tipo-col .t-nome { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink); }
+  .tipo-col .t-nome i { width: 9px; height: 9px; border-radius: 50%; background: var(--cor); }
+  .tipo-col .t-num { font-size: 28px; font-weight: 700; color: var(--ink); margin: 8px 0 2px; font-variant-numeric: tabular-nums; }
+  .tipo-col .t-num small { font-size: 13px; font-weight: 600; color: var(--g600); margin-left: 6px; }
+  .t-linha { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--g600); padding-top: 8px; margin-top: 8px; border-top: 1px solid var(--g200); }
+  .t-linha b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ---- Por fornecedor ---- */
+  .rank-cab, .rank-linha { display: grid; grid-template-columns: 28px minmax(0, 2.2fr) minmax(0, 1.3fr) repeat(3, minmax(0, .9fr)); gap: 12px; align-items: center; }
+  .rank-cab { font-size: 10px; font-weight: 600; color: var(--g400); text-transform: uppercase; letter-spacing: .08em; padding: 0 4px 8px; }
+  .rank-linha { padding: 12px 4px; border-top: 1px solid var(--g100); border-radius: 8px; }
+  .rank-linha:hover { background: var(--g100); }
+  .rank-pos { width: 26px; height: 26px; border-radius: 50%; background: var(--g100); color: var(--g600); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .rank-linha:nth-child(2) .rank-pos { background: var(--c-col); color: #1b1300; }
+  .rank-nome { font-size: 14px; font-weight: 600; color: var(--ink); word-break: break-word; }
+  .rank-volume { display: flex; align-items: center; gap: 10px; }
+  .rank-volume b { font-size: 16px; min-width: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .rank-volume .fundo { flex: 1; height: 8px; }
+  .rank-tempo { font-size: 14px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .rank-tempo.ruim { color: #e5484d; }
+  .rank-tempo.bom { color: #30a46c; }
+  .rank-tempo.nulo { color: var(--g400); font-weight: 400; }
+  .rank-legenda { font-size: 12px; color: var(--g600); margin-top: 12px; }
+  .rank-legenda .ponto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 0 4px 0 12px; }
+
+  /* ---- Por doca ---- */
+  .doca-grupo { margin-bottom: 18px; }
+  .doca-grupo h4 { margin: 0 0 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .7); }
+  .docas-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .doca-card { position: relative; padding: 14px 16px; border-radius: 14px; background: rgba(255, 255, 255, .97); box-shadow: 0 10px 30px rgba(3, 10, 30, .28); overflow: hidden; }
+  .doca-card .d-nome { font-size: 12px; font-weight: 600; color: var(--g600); text-transform: uppercase; letter-spacing: .05em; }
+  .doca-card .d-num { font-size: 32px; font-weight: 700; color: var(--ink); margin: 4px 0 8px; font-variant-numeric: tabular-nums; line-height: 1; }
+  .doca-card .d-num small { font-size: 12px; font-weight: 600; color: var(--g600); margin-left: 4px; }
+  .doca-card .d-meta { font-size: 12px; color: var(--g600); margin-top: 8px; display: flex; justify-content: space-between; }
+  .doca-card .d-meta b { color: var(--ink); font-weight: 600; }
+  .doca-card.top { outline: 2px solid var(--c-col); }
+  .doca-card.top .d-nome::after { content: " \2605"; color: var(--c-col); }
+  .doca-card.zerada { opacity: .6; }
+  body:is([data-cartoes="vidro"], [data-cartoes="preto"]) .doca-card {
+    --ink: #fff; --g600: rgba(255,255,255,.66); --g400: rgba(255,255,255,.46);
+    --g300: rgba(255,255,255,.30); --g200: rgba(255,255,255,.16); --g100: rgba(255,255,255,.09);
+    --navy: #a9c6ff; color: #fff;
+  }
+  body[data-cartoes="vidro"] .doca-card { background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.20); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 34px rgba(2,8,26,.35); }
+  body[data-cartoes="preto"] .doca-card { background: #070b14; border: 1px solid rgba(255,255,255,.10); box-shadow: 0 10px 34px rgba(2,8,26,.45); }
+
+  @media (max-width: 700px) {
+    .tipos-colunas { grid-template-columns: 1fr; }
+    .rank-cab { display: none; }
+    .rank-linha { grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr); row-gap: 6px; }
+    .rank-linha .rank-volume { grid-column: 2 / -1; }
+    .rank-linha .rank-tempo { grid-column: auto; }
+    .rank-linha .rank-tempo::before { content: attr(data-l); display: block; font-size: 10px; font-weight: 600; color: var(--g400); text-transform: uppercase; letter-spacing: .06em; }
+  }
+
   /* ---- temas dos cartoes (Branco e o padrao acima) ---- */
   body:is([data-cartoes="vidro"], [data-cartoes="preto"]) :is(.card, .box, .criticos) {
     --ink: #fff; --g600: rgba(255,255,255,.66); --g400: rgba(255,255,255,.46);
@@ -236,7 +302,7 @@
       <div class="box" id="etapas"></div>
 
       <p class="secao">Coleta x Descarga</p>
-      <div class="docas" id="tipos"></div>
+      <div id="tipos"></div>
 
       <p class="secao">Por fornecedor</p>
       <div class="box" id="fornecedores"></div>
@@ -249,7 +315,7 @@
       <div class="box"><div class="barras dias" id="grafico-dias"></div></div>
 
       <p class="secao">Por doca</p>
-      <div class="docas" id="docas"></div>
+      <div id="docas"></div>
     </div>
   </div>
 </main>
@@ -444,19 +510,41 @@ function renderGraficos(d) {
 
 function renderDocas(d) {
   const total = d.por_doca.reduce((t, x) => t + x.n, 0);
+  const maior = Math.max(...d.por_doca.map((x) => x.n), 0);
   const alvo = document.getElementById("docas");
   alvo.replaceChildren();
+  const grupos = [["Recebimento", []], ["Expedição", []], ["Outras docas", []]];
   for (const x of d.por_doca) {
-    const c = el("div", "card");
-    c.append(el("div", "doca-nome", /^[AB]\d/.test(x.doca) ? "Doca " + x.doca : x.doca));
-    const fundo = el("div", "fundo");
-    const p = el("div", "preenchido");
-    p.style.width = (total ? (x.n / total) * 100 : 0) + "%";
-    fundo.append(p);
-    c.append(fundo);
-    c.append(el("div", "doca-meta", `${x.n} motorista(s)${total ? " · " + Math.round((x.n / total) * 100) + "% do uso" : ""}`));
-    c.append(el("div", "doca-meta", `Atendimento medio: ${dur(x.atendimento_media)}`));
-    alvo.append(c);
+    const g = x.doca.startsWith("Recebimento") ? 0 : x.doca.startsWith("Expedi") ? 1 : 2;
+    grupos[g][1].push(x);
+  }
+  for (const [titulo, lista] of grupos) {
+    if (!lista.length) continue;
+    if (titulo === "Outras docas" && lista.every((x) => x.n === 0)) continue;
+    const bloco = el("div", "doca-grupo");
+    bloco.append(el("h4", null, titulo));
+    const grade = el("div", "docas-grade");
+    for (const x of lista) {
+      const pct = total ? Math.round((x.n / total) * 100) : 0;
+      const c = el("div", "doca-card" + (x.n && x.n === maior ? " top" : "") + (x.n ? "" : " zerada"));
+      c.append(el("div", "d-nome", x.doca));
+      const num = el("div", "d-num", x.n);
+      num.append(el("small", null, x.n === 1 ? "motorista" : "motoristas"));
+      c.append(num);
+      const fundo = el("div", "fundo");
+      const p = el("div", "preenchido");
+      p.style.width = pct + "%";
+      fundo.append(p);
+      c.append(fundo);
+      const m1 = el("div", "d-meta");
+      m1.append(el("span", null, "Uso"), el("b", null, pct + "%"));
+      const m2 = el("div", "d-meta");
+      m2.append(el("span", null, "Atendimento"), el("b", null, dur(x.atendimento_media)));
+      c.append(m1, m2);
+      grade.append(c);
+    }
+    bloco.append(grade);
+    alvo.append(bloco);
   }
 }
 
@@ -466,19 +554,36 @@ function renderTipos(d) {
   const total = d.por_tipo.reduce((t, x) => t + x.n, 0);
   if (!d.por_tipo.length) { alvo.append(el("p", "vazio", "Sem registros no periodo.")); return; }
   const nomes = { COLETA: "Coleta", DESCARGA: "Descarga", "NAO INFORMADO": "Nao informado" };
-  for (const x of d.por_tipo) {
-    const c = el("div", "card");
-    c.append(el("div", "doca-nome", nomes[x.tipo] || x.tipo));
-    const fundo = el("div", "fundo");
-    const p = el("div", "preenchido");
-    p.style.width = (total ? (x.n / total) * 100 : 0) + "%";
-    fundo.append(p);
-    c.append(fundo);
-    c.append(el("div", "doca-meta", `${x.n} motorista(s)${total ? " · " + Math.round((x.n / total) * 100) + "%" : ""}`));
-    c.append(el("div", "doca-meta", `Espera media: ${dur(x.espera_media)}`));
-    c.append(el("div", "doca-meta", `Atendimento medio: ${dur(x.atendimento_media)}`));
-    alvo.append(c);
+  const cores = { COLETA: "var(--c-col)", DESCARGA: "var(--c-desc)" };
+  const ordem = [...d.por_tipo].sort((a, b) => (a.tipo === "DESCARGA" ? -1 : b.tipo === "DESCARGA" ? 1 : b.n - a.n));
+  const topo = el("div", "tipos-topo");
+  topo.append(el("b", null, total), el("span", null, total === 1 ? "motorista no periodo" : "motoristas no periodo"));
+  const barra = el("div", "tipos-barra");
+  for (const x of ordem) {
+    const seg = el("i");
+    seg.style.width = (total ? (x.n / total) * 100 : 0) + "%";
+    seg.style.background = cores[x.tipo] || "var(--g400)";
+    seg.title = `${nomes[x.tipo] || x.tipo}: ${x.n}`;
+    barra.append(seg);
   }
+  const colunas = el("div", "tipos-colunas");
+  for (const x of ordem) {
+    const c = el("div", "tipo-col");
+    c.style.setProperty("--cor", cores[x.tipo] || "var(--g400)");
+    const nome = el("div", "t-nome");
+    nome.append(el("i"), nomes[x.tipo] || x.tipo);
+    const num = el("div", "t-num", x.n);
+    num.append(el("small", null, (total ? Math.round((x.n / total) * 100) : 0) + "%"));
+    const l1 = el("div", "t-linha");
+    l1.append(el("span", null, "Espera media"), el("b", null, dur(x.espera_media)));
+    const l2 = el("div", "t-linha");
+    l2.append(el("span", null, "Atendimento medio"), el("b", null, dur(x.atendimento_media)));
+    c.append(nome, num, l1, l2);
+    colunas.append(c);
+  }
+  const box = el("div", "box tipos-box");
+  box.append(topo, barra, colunas);
+  alvo.append(box);
 }
 
 function renderFornecedores(d) {
@@ -486,25 +591,36 @@ function renderFornecedores(d) {
   box.replaceChildren();
   if (!d.por_fornecedor.length) { box.append(el("p", "vazio", "Nenhum fornecedor registrado no periodo.")); return; }
   const max = Math.max(...d.por_fornecedor.map((x) => x.n), 1);
-  for (const f of d.por_fornecedor) {
-    const item = el("div", "forn");
-    const topo = el("div", "forn-topo");
-    const nome = el("span", "forn-nome", f.fornecedor);
+  const cab = el("div", "rank-cab");
+  for (const t of ["", "Fornecedor", "Chegadas", "Espera media", "Pior espera", "Atendimento"]) cab.append(el("span", null, t));
+  box.append(cab);
+  const classeEspera = (seg) => (seg == null ? "nulo" : seg > metaMin * 60 ? "ruim" : "bom");
+  d.por_fornecedor.forEach((f, i) => {
+    const linha = el("div", "rank-linha");
+    linha.append(el("span", "rank-pos", i + 1));
+    const nome = el("span", "rank-nome", f.fornecedor);
     if (f.baixa_amostra) nome.append(el("span", "tag-pouco", "poucos registros"));
-    const meta = el("span", "forn-meta");
-    const b1 = el("b", null, f.n);
-    const b2 = el("b", null, dur(f.espera_media));
-    const b3 = el("b", null, dur(f.espera_max));
-    const b4 = el("b", null, dur(f.atendimento_media));
-    meta.append(b1, " chegada(s) · espera media ", b2, " · pior ", b3, " · atendimento ", b4);
-    topo.append(nome, meta);
+    const vol = el("div", "rank-volume");
     const fundo = el("div", "fundo");
     const p = el("div", "preenchido");
     p.style.width = (f.n / max) * 100 + "%";
     fundo.append(p);
-    item.append(topo, fundo);
-    box.append(item);
-  }
+    vol.append(el("b", null, f.n), fundo);
+    const t1 = el("span", "rank-tempo " + classeEspera(f.espera_media), dur(f.espera_media));
+    t1.dataset.l = "Espera media";
+    const t2 = el("span", "rank-tempo " + classeEspera(f.espera_max), dur(f.espera_max));
+    t2.dataset.l = "Pior espera";
+    const t3 = el("span", "rank-tempo" + (f.atendimento_media == null ? " nulo" : ""), dur(f.atendimento_media));
+    t3.dataset.l = "Atendimento";
+    linha.append(nome, vol, t1, t2, t3);
+    box.append(linha);
+  });
+  const leg = el("div", "rank-legenda");
+  leg.append("Cores da espera: ");
+  const bom = el("span", "ponto"); bom.style.background = "#30a46c";
+  const ruim = el("span", "ponto"); ruim.style.background = "#e5484d";
+  leg.append(bom, `dentro da meta (${metaMin} min)`, ruim, "acima da meta");
+  box.append(leg);
 }
 
 async function carregar() {

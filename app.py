@@ -46,6 +46,14 @@ DOCAS_VALIDAS = {
     "Recebimento A", "Recebimento B", "Recebimento C", "Recebimento EAD",
     "Expedição A", "Expedição B", "Expedição C", "Expedição EAD",
 }
+DOCAS_RENOMEADAS = {
+    "A1": "Recebimento A", "Recebimento 1": "Recebimento A",
+    "A2": "Recebimento B", "Recebimento 2": "Recebimento B",
+    "Recebimento 3": "Recebimento C",
+    "B1": "Expedição A", "Expedição 1": "Expedição A",
+    "B2": "Expedição B", "Expedição 2": "Expedição B",
+    "B3": "Expedição C", "Expedição 3": "Expedição C",
+}
 TIPOS_VALIDOS = {"COLETA", "DESCARGA"}
 VEICULOS_VALIDOS = {"Carro / Fiorino", "Van", "VUC", "Toco", "Truck", "Carreta", "Bitrem", "Outro"}
 
@@ -282,6 +290,8 @@ def init_db():
             conn.execute("ALTER TABLE motoristas ADD COLUMN fornecedor TEXT")
         if "veiculo" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN veiculo TEXT")
+        for antiga, nova in DOCAS_RENOMEADAS.items():
+            conn.execute("UPDATE motoristas SET doca = %s WHERE doca = %s", (nova, antiga))
         if "finalizado_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN finalizado_em TIMESTAMPTZ")
         if "tipo" not in colunas:

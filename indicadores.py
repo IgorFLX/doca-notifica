@@ -313,13 +313,13 @@ def gerar_csv(conn, periodo: str) -> bytes:
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
     w.writerow([
-        "Ordem de chegada", "ID", "Motorista", "ID da carga", "Fornecedor", "Tipo", "NF", "Doca", "Status",
+        "Ordem de chegada", "ID", "Motorista", "ID da carga", "Fornecedor", "Veiculo", "Tipo", "NF", "Doca", "Status",
         "Entrada", "Chamada", "Chegada na doca", "Saida da doca", "NF liberada", "Finalizado",
         "Espera na fila (min)", "Deslocamento (min)", "Atendimento (min)", "Total (min)",
     ])
     for ordem, r in enumerate(rows, start=1):
         w.writerow([
-            ordem, r["id"], _seguro(r["nome"]), _seguro(r["carga"]), _seguro(r["fornecedor"]), r["tipo"] or "",
+            ordem, r["id"], _seguro(r["nome"]), _seguro(r["carga"]), _seguro(r["fornecedor"]), _seguro(r["veiculo"]), r["tipo"] or "",
             _seguro(r["nf"]), r["doca"] or "", r["status"],
             _local(r["criado_em"]), _local(r["chamado_em"]), _local(r["chegou_em"]),
             _local(r["saiu_doca_em"]), _local(r["nf_liberada_em"]), _local(r["finalizado_em"]),

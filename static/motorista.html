@@ -83,6 +83,12 @@
     border: 1.5px solid #dde1ea; border-radius: 10px; font-size: 15px;
     transition: border-color .15s ease;
   }
+  select#veiculo {
+    width: 100%; box-sizing: border-box; padding: 13px 14px; margin-bottom: 12px; background: #fff; color: #6b7280;
+    border: 1.5px solid #dde1ea; border-radius: 10px; font-size: 15px;
+  }
+  select#veiculo.escolhido { color: inherit; }
+  select#veiculo:focus { outline: none; border-color: var(--navy-light); }
   input[type=text]:focus {
     outline: none; border-color: var(--navy-light);
   }
@@ -141,7 +147,7 @@
     .logo-box img { width: 140px; }
     .card { padding: 22px 18px; border-radius: 16px; }
     h1 { font-size: 17px; }
-    input[type=text], button { font-size: 16px; }
+    input[type=text], select#veiculo, button { font-size: 16px; }
     .doca-numero { font-size: 56px; }
     .doca-numero.longo { font-size: 40px; }
   }
@@ -170,6 +176,7 @@
     <input type="text" id="nome" placeholder="Seu nome" />
     <input type="text" id="carga" placeholder="ID da carga" />
     <input type="text" id="fornecedor" placeholder="Fornecedor" autocomplete="organization" />
+    <select id="veiculo" aria-label="Tipo de veiculo"><option value="">Tipo de veiculo</option><option value="Carro / Fiorino">Carro / Fiorino</option><option value="Van">Van</option><option value="VUC">VUC</option><option value="Toco">Toco</option><option value="Truck">Truck</option><option value="Carreta">Carreta</option><option value="Bitrem">Bitrem</option><option value="Outro">Outro</option></select>
     <div class="tipo-rotulo">Tipo da operacao</div>
     <div class="tipo-grupo" id="tipo-grupo" role="radiogroup" aria-label="Tipo da operacao">
       <button type="button" class="tipo-btn" data-tipo="COLETA" onclick="escolherTipo('COLETA')">Coleta</button>
@@ -217,11 +224,15 @@ function mostrarTela(id) {
   document.getElementById(id).classList.remove("hidden");
 }
 
+document.getElementById("veiculo").addEventListener("change", (e) => e.target.classList.toggle("escolhido", !!e.target.value));
+
 async function entrarNaFila() {
   const nome = document.getElementById("nome").value.trim();
   const carga = document.getElementById("carga").value.trim();
   const fornecedor = document.getElementById("fornecedor").value.trim();
+  const veiculo = document.getElementById("veiculo").value;
   if (!nome || !carga || !fornecedor) { alert("Preencha nome, ID da carga e fornecedor"); return; }
+  if (!veiculo) { alert("Escolha o tipo de veiculo"); return; }
   if (!tipoEscolhido) { alert("Escolha se e Coleta ou Descarga"); return; }
   if (enviandoEntrada) return;
   enviandoEntrada = true;
@@ -233,7 +244,7 @@ async function entrarNaFila() {
     const res = await fetch("/api/motoristas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, carga, fornecedor, tipo: tipoEscolhido }),
+      body: JSON.stringify({ nome, carga, fornecedor, tipo: tipoEscolhido, veiculo }),
     });
     if (!res.ok) throw new Error("status " + res.status);
     const data = await res.json();
@@ -532,6 +543,8 @@ function resetarParaNovaEntrada() {
   document.getElementById("nome").value = "";
   document.getElementById("carga").value = "";
   document.getElementById("fornecedor").value = "";
+  document.getElementById("veiculo").value = "";
+  document.getElementById("veiculo").classList.remove("escolhido");
   tipoEscolhido = null;
   document.querySelectorAll(".tipo-btn").forEach((b) => b.classList.remove("ativo"));
   mostrarTela("form-entrada");

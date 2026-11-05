@@ -222,7 +222,7 @@
   </div>
   <table>
     <thead>
-      <tr><th>Chegada</th><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Tipo</th><th>Status</th><th>Doca</th><th>Espera</th><th>Acao</th></tr>
+      <tr><th>Chegada</th><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Veiculo</th><th>Tipo</th><th>Status</th><th>Doca</th><th>Espera</th><th>Acao</th></tr>
     </thead>
     <tbody id="tbody"></tbody>
   </table>
@@ -252,7 +252,7 @@
   </div>
   <table>
     <thead>
-      <tr><th>Chegada</th><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Tipo</th><th>NF</th><th>Doca</th><th>Espera</th><th>Finalizado</th><th></th></tr>
+      <tr><th>Chegada</th><th>Motorista</th><th>ID da carga</th><th>Fornecedor</th><th>Veiculo</th><th>Tipo</th><th>NF</th><th>Doca</th><th>Espera</th><th>Finalizado</th><th></th></tr>
     </thead>
     <tbody id="tbody-historico"></tbody>
   </table>
@@ -265,6 +265,9 @@
   <label>Nome<input type="text" id="ed-nome" maxlength="100" /></label>
   <label>ID da carga<input type="text" id="ed-carga" maxlength="50" /></label>
   <label>Fornecedor<input type="text" id="ed-fornecedor" maxlength="100" /></label>
+  <label>Tipo de veiculo
+    <select id="ed-veiculo"><option value="">Selecione...</option><option value="Carro / Fiorino">Carro / Fiorino</option><option value="Van">Van</option><option value="VUC">VUC</option><option value="Toco">Toco</option><option value="Truck">Truck</option><option value="Carreta">Carreta</option><option value="Bitrem">Bitrem</option><option value="Outro">Outro</option></select>
+  </label>
   <label>NF (coleta)<input type="text" id="ed-nf" maxlength="120" /></label>
   <label>Tipo
     <select id="ed-tipo">
@@ -481,7 +484,7 @@ function detectarNovos(lista) {
   for (const m of novos) {
     destacar.add(m.id);
     setTimeout(() => destacar.delete(m.id), 20000);
-    mostrarToast("Novo motorista na fila", `${m.nome} - carga ${m.carga} - ${m.fornecedor || "sem fornecedor"} (${rotuloTipo(m.tipo)})`);
+    mostrarToast("Novo motorista na fila", `${m.nome} - carga ${m.carga} - ${m.fornecedor || "sem fornecedor"} (${rotuloTipo(m.tipo)}${m.veiculo ? ", " + m.veiculo : ""})`);
   }
   if (document.visibilityState !== "visible" || !document.hasFocus()) {
     pendentes += novos.length;
@@ -595,7 +598,7 @@ function filtrarFila(lista) {
     if (tipo && m.tipo !== tipo) return false;
     if (status && m.status !== status) return false;
     if (!q) return true;
-    return [m.nome, m.carga, m.fornecedor, m.nf].some((v) => (v || "").toLowerCase().includes(q));
+    return [m.nome, m.carga, m.fornecedor, m.veiculo, m.nf].some((v) => (v || "").toLowerCase().includes(q));
   });
 }
 
@@ -629,6 +632,8 @@ async function carregar() {
 
     const tdFornecedor = document.createElement("td");
     tdFornecedor.textContent = m.fornecedor || "-";
+    const tdVeiculo = document.createElement("td");
+    tdVeiculo.textContent = m.veiculo || "-";
 
     const tdTipo = document.createElement("td");
     tdTipo.textContent = rotuloTipo(m.tipo) + (m.nf ? ` - NF ${m.nf}` : "");
@@ -733,8 +738,8 @@ async function carregar() {
       if (btnAv) soAvancar.appendChild(btnAv);
       tdAcao.appendChild(soAvancar);
     }
-    tr.append(tdChegada, tdNome, tdCarga, tdFornecedor, tdTipo, tdStatus, tdDoca, tdEspera, tdAcao);
-    rotular(tr, ["Chegada", "Motorista", "ID da carga", "Fornecedor", "Tipo", "Status", "Doca", "Espera", ""]);
+    tr.append(tdChegada, tdNome, tdCarga, tdFornecedor, tdVeiculo, tdTipo, tdStatus, tdDoca, tdEspera, tdAcao);
+    rotular(tr, ["Chegada", "Motorista", "ID da carga", "Fornecedor", "Veiculo", "Tipo", "Status", "Doca", "Espera", ""]);
     tbody.appendChild(tr);
   }
 }
@@ -753,7 +758,7 @@ function filtrarHistorico(lista) {
     if (tipo && m.tipo !== tipo) return false;
     if (dia && diaSP(m.criado_em) !== dia) return false;
     if (!q) return true;
-    return [m.nome, m.carga, m.fornecedor, m.nf].some((v) => (v || "").toLowerCase().includes(q));
+    return [m.nome, m.carga, m.fornecedor, m.veiculo, m.nf].some((v) => (v || "").toLowerCase().includes(q));
   });
 }
 
@@ -790,6 +795,8 @@ function renderHistorico() {
 
     const tdFornecedor = document.createElement("td");
     tdFornecedor.textContent = m.fornecedor || "-";
+    const tdVeiculo = document.createElement("td");
+    tdVeiculo.textContent = m.veiculo || "-";
 
     const tdTipoH = document.createElement("td");
     tdTipoH.textContent = rotuloTipo(m.tipo);
@@ -810,8 +817,8 @@ function renderHistorico() {
     const tdAcaoH = document.createElement("td");
     if (PERM.editar) tdAcaoH.appendChild(botoesSecundarios(m));
 
-    tr.append(tdChegadaH, tdNome, tdCarga, tdFornecedor, tdTipoH, tdNF, tdDoca, tdEspera, tdFinalizado, tdAcaoH);
-    rotular(tr, ["Chegada", "Motorista", "ID da carga", "Fornecedor", "Tipo", "NF", "Doca", "Espera", "Finalizado", ""]);
+    tr.append(tdChegadaH, tdNome, tdCarga, tdFornecedor, tdVeiculo, tdTipoH, tdNF, tdDoca, tdEspera, tdFinalizado, tdAcaoH);
+    rotular(tr, ["Chegada", "Motorista", "ID da carga", "Fornecedor", "Veiculo", "Tipo", "NF", "Doca", "Espera", "Finalizado", ""]);
     tbody.appendChild(tr);
   }
 }
@@ -840,6 +847,7 @@ function abrirEdicao(m) {
   document.getElementById("ed-carga").value = m.carga || "";
   document.getElementById("ed-fornecedor").value = m.fornecedor || "";
   document.getElementById("ed-tipo").value = m.tipo || "";
+  document.getElementById("ed-veiculo").value = m.veiculo || "";
   document.getElementById("ed-nf").value = m.nf || "";
   document.getElementById("ed-erro").textContent = "";
   document.getElementById("dlg-editar").showModal();
@@ -856,6 +864,7 @@ async function salvarEdicao() {
   const fornecedor = document.getElementById("ed-fornecedor").value.trim();
   const tipo = document.getElementById("ed-tipo").value;
   const nf = document.getElementById("ed-nf").value.trim();
+  const veiculo = document.getElementById("ed-veiculo").value;
   const erro = document.getElementById("ed-erro");
   if (!nome || !carga || !fornecedor || !tipo) { erro.textContent = "Preencha todos os campos."; return; }
   const btn = document.getElementById("ed-salvar");
@@ -864,7 +873,7 @@ async function salvarEdicao() {
     const res = await apiFetch(`/api/motoristas/${editandoId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, carga, fornecedor, tipo, nf }),
+      body: JSON.stringify({ nome, carga, fornecedor, tipo, nf, veiculo }),
     });
     if (!res.ok) { erro.textContent = "Nao foi possivel salvar. Tente novamente."; return; }
     fecharEdicao();

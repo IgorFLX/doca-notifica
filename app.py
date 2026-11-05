@@ -47,6 +47,7 @@ DOCAS_VALIDAS = {
     "Expedição A", "Expedição B", "Expedição C", "Expedição EAD",
 }
 TIPOS_VALIDOS = {"COLETA", "DESCARGA"}
+VEICULOS_VALIDOS = {"Carro / Fiorino", "Van", "VUC", "Toco", "Truck", "Carreta", "Bitrem", "Outro"}
 
 BASE_DIR = Path(__file__).parent
 
@@ -279,6 +280,8 @@ def init_db():
             conn.execute("ALTER TABLE motoristas RENAME COLUMN placa TO carga")
         if "fornecedor" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN fornecedor TEXT")
+        if "veiculo" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN veiculo TEXT")
         if "finalizado_em" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN finalizado_em TIMESTAMPTZ")
         if "tipo" not in colunas:
@@ -312,6 +315,7 @@ class NovoMotorista(BaseModel):
     fornecedor: str = Field(max_length=100)
     tipo: str = Field(max_length=20)
     nf: str | None = Field(default=None, max_length=120)
+    veiculo: str | None = Field(default=None, max_length=40)
 
 
 class ChamarPayload(BaseModel):
@@ -551,20 +555,25 @@ def normalizar_motorista(payload: NovoMotorista):
         raise HTTPException(400, "Nome, ID da carga e fornecedor sao obrigatorios")
     if tipo not in TIPOS_VALIDOS:
         raise HTTPException(400, "Tipo deve ser Coleta ou Descarga")
-    return nome, carga, fornecedor, tipo
+    veiculo = " ".join((payload.veiculo or "").split()) or None
+    if veiculo and veiculo not in VEICULOS_VALIDOS:
+        raise HTTPException(400, "Tipo de veiculo invalido")
+    return nome, carga, fornecedor, tipo, veiculo
 
 
 @app.post("/api/motoristas")
 def criar_motorista(payload: NovoMotorista, background: BackgroundTasks, _sig: None = Depends(sinalizar)):
-    nome, carga, fornecedor, tipo = normalizar_motorista(payload)
+    nome, carga, fornecedor, tipo, veiculo = normalizar_motorista(payload)
+    if not veiculo:
+        raise HTTPException(400, "Informe o tipo de veiculo")
     token = secrets.token_urlsafe(16)
     with get_db() as conn:
         row = conn.execute(
-            "INSERT INTO motoristas (nome, carga, fornecedor, tipo, status, criado_em, token) VALUES (%s, %s, %s, %s, 'aguardando', %s, %s) RETURNING id",
-            (nome, carga, fornecedor, tipo, datetime.now(timezone.utc), token),
+            "INSERT INTO motoristas (nome, carga, fornecedor, tipo, veiculo, status, criado_em, token) VALUES (%s, %s, %s, %s, %s, 'aguardando', %s, %s) RETURNING id",
+            (nome, carga, fornecedor, tipo, veiculo, datetime.now(timezone.utc), token),
         ).fetchone()
     rotulo = "Coleta" if tipo == "COLETA" else "Descarga"
-    background.add_task(notificar_operadores, "Novo motorista na fila", f"{nome} - carga {carga} - {fornecedor} ({rotulo})")
+    background.add_task(notificar_operadores, "Novo motorista na fila", f"{nome} - carga {carga} - {fornecedor} ({rotulo}, {veiculo})")
     return {"id": row["id"], "token": token}
 
 
@@ -835,12 +844,12 @@ def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_edicao), _si
 
 @app.put("/api/motoristas/{motorista_id}")
 def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
-    nome, carga, fornecedor, tipo = normalizar_motorista(payload)
+    nome, carga, fornecedor, tipo, veiculo = normalizar_motorista(payload)
     nf = normalizar_nf(payload.nf) or None
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s, tipo = %s, nf = %s WHERE id = %s AND removido_em IS NULL",
-            (nome, carga, fornecedor, tipo, nf, motorista_id),
+            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s, tipo = %s, nf = %s, veiculo = %s WHERE id = %s AND removido_em IS NULL",
+            (nome, carga, fornecedor, tipo, nf, veiculo, motorista_id),
         )
         if cur.rowcount == 0:
             raise HTTPException(404, "Motorista nao encontrado")

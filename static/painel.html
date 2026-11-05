@@ -293,8 +293,8 @@ async function apiFetch(url, options) {
 }
 
 const DOCAS = [
-  { grupo: "Recebimento", itens: ["Recebimento 1", "Recebimento 2", "Recebimento 3", "Recebimento EAD"] },
-  { grupo: "Expedição", itens: ["Expedição 1", "Expedição 2", "Expedição 3", "Expedição EAD"] },
+  { grupo: "Recebimento", itens: ["Recebimento A", "Recebimento B", "Recebimento C", "Recebimento EAD"] },
+  { grupo: "Expedição", itens: ["Expedição A", "Expedição B", "Expedição C", "Expedição EAD"] },
 ];
 
 function rotuloTipo(t) {
@@ -669,7 +669,7 @@ async function carregar() {
         }
         select.appendChild(og);
       }
-      select.value = docaEscolhida[m.id] || (m.tipo === "COLETA" ? "Expedição 1" : "Recebimento 1");
+      select.value = docaEscolhida[m.id] || (m.tipo === "COLETA" ? "Expedição A" : "Recebimento A");
       select.addEventListener("focus", () => { seletorEmUsoAte = Date.now() + 8000; });
       select.addEventListener("change", () => {
         docaEscolhida[m.id] = select.value;

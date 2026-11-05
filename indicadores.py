@@ -9,8 +9,8 @@ TZ_NOME = "America/Sao_Paulo"
 TZ = ZoneInfo(TZ_NOME)
 META_PADRAO_MIN = 30
 DOCAS = [
-    "Recebimento 1", "Recebimento 2", "Recebimento 3", "Recebimento EAD",
-    "Expedição 1", "Expedição 2", "Expedição 3", "Expedição EAD",
+    "Recebimento A", "Recebimento B", "Recebimento C", "Recebimento EAD",
+    "Expedição A", "Expedição B", "Expedição C", "Expedição EAD",
 ]
 PERIODOS = {"hoje": 1, "7d": 7, "30d": 30}
 

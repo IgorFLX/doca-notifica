@@ -43,8 +43,8 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 DOCAS_VALIDAS = {
-    "Recebimento 1", "Recebimento 2", "Recebimento 3", "Recebimento EAD",
-    "Expedição 1", "Expedição 2", "Expedição 3", "Expedição EAD",
+    "Recebimento A", "Recebimento B", "Recebimento C", "Recebimento EAD",
+    "Expedição A", "Expedição B", "Expedição C", "Expedição EAD",
 }
 TIPOS_VALIDOS = {"COLETA", "DESCARGA"}
 

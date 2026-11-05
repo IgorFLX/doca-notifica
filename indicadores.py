@@ -217,7 +217,7 @@ def calcular_dashboard(conn, periodo: str) -> dict:
 
     fornecedores = conn.execute(
         f"""
-        SELECT COALESCE(fornecedor, 'NAO INFORMADO') AS fornecedor,
+        SELECT MAX(COALESCE(fornecedor, 'NAO INFORMADO')) AS fornecedor,
                COUNT(*) AS n,
                AVG(EXTRACT(EPOCH FROM (chamado_em - criado_em)))
                    FILTER (WHERE chamado_em IS NOT NULL) AS espera_media,
@@ -227,7 +227,8 @@ def calcular_dashboard(conn, periodo: str) -> dict:
                    FILTER (WHERE finalizado_em IS NOT NULL AND chegou_em IS NOT NULL) AS atend_media
         FROM motoristas
         WHERE {ATIVO} AND criado_em >= %s AND criado_em < %s
-        GROUP BY 1 ORDER BY n DESC, 1 LIMIT 15
+        GROUP BY translate(upper(COALESCE(fornecedor, 'NAO INFORMADO')), 'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ', 'AAAAAEEEEIIIIOOOOOUUUUC')
+        ORDER BY n DESC, 1 LIMIT 15
         """,
         (inicio, agora),
     ).fetchall()

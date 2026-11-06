@@ -592,6 +592,35 @@ def normalizar_motorista(payload: NovoMotorista):
     return nome, carga, fornecedor, tipo, veiculo
 
 
+def _entrada_ativa(conn, nome: str, carga: str):
+    return conn.execute(
+        "SELECT id, token FROM motoristas WHERE removido_em IS NULL AND status != 'finalizado' "
+        "AND upper(carga) = %s AND lower(nome) = lower(%s) ORDER BY criado_em DESC LIMIT 1",
+        (carga, nome),
+    ).fetchone()
+
+
+class RetomarPayload(BaseModel):
+    nome: str = Field(max_length=100)
+    carga: str = Field(max_length=50)
+
+
+@app.post("/api/motoristas/retomar")
+def retomar_motorista(payload: RetomarPayload):
+    nome = " ".join(payload.nome.split())
+    carga = payload.carga.strip().upper()
+    if not nome or not carga:
+        raise HTTPException(400, "Informe seu nome e o ID da carga")
+    chave = f"ret:{carga}"
+    checar_limite(chave)
+    with get_db() as conn:
+        row = _entrada_ativa(conn, nome, carga)
+    if not row:
+        registrar_falha(chave)
+        raise HTTPException(404, "Nao encontramos essa entrada na fila")
+    return {"id": row["id"], "token": row["token"]}
+
+
 @app.post("/api/motoristas")
 def criar_motorista(payload: NovoMotorista, background: BackgroundTasks, _sig: None = Depends(sinalizar)):
     nome, carga, fornecedor, tipo, veiculo = normalizar_motorista(payload)
@@ -600,6 +629,9 @@ def criar_motorista(payload: NovoMotorista, background: BackgroundTasks, _sig: N
     celular = normalizar_celular(payload.celular)
     token = secrets.token_urlsafe(16)
     with get_db() as conn:
+        existente = _entrada_ativa(conn, nome, carga)
+        if existente:
+            return {"id": existente["id"], "token": existente["token"]}
         row = conn.execute(
             "INSERT INTO motoristas (nome, carga, fornecedor, tipo, veiculo, celular, status, criado_em, token) VALUES (%s, %s, %s, %s, %s, %s, 'aguardando', %s, %s) RETURNING id",
             (nome, carga, fornecedor, tipo, veiculo, celular, datetime.now(timezone.utc), token),

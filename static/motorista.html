@@ -142,6 +142,9 @@
 
   .dica-campo { font-size: 11px; color: #6b7280; margin: -6px 0 12px; text-align: left; }
   .aviso-notif button { width: auto; padding: 8px 14px; margin-top: 8px; font-size: 13px; }
+  .retomar { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e5e7eb; font-size: 13px; color: #4b5563; text-align: center; }
+  .retomar .retomar-dica { display: block; font-size: 11px; color: #6b7280; margin-top: 6px; }
+  .btn-retomar { background: #fff; color: var(--navy-dark); border: 1.5px solid var(--navy-dark); margin-top: 8px; }
   .wrap { margin: auto; padding: 16px 0; }
   @media (max-width: 480px) {
     .wrap { max-width: none; width: calc(100% - 32px); padding: 20px 0; }
@@ -187,6 +190,11 @@
       <button type="button" class="tipo-btn" data-tipo="DESCARGA" onclick="escolherTipo('DESCARGA')">Descarga</button>
     </div>
     <button id="btn-entrar" onclick="entrarNaFila()">Entrar na fila</button>
+    <div class="retomar">
+      <span>Ja entrou na fila e a tela voltou para o cadastro?</span>
+      <button type="button" class="btn-retomar" id="btn-retomar" onclick="retomarEspera()">Voltar para a minha espera</button>
+      <span class="retomar-dica">Preencha acima seu nome e o ID da carga e toque neste botao.</span>
+    </div>
   </div>
 
   <div id="tela-espera" class="hidden">
@@ -264,6 +272,34 @@ async function entrarNaFila() {
     enviandoEntrada = false;
     btn.disabled = false;
     btn.textContent = "Entrar na fila";
+  }
+}
+
+async function retomarEspera() {
+  const nome = document.getElementById("nome").value.trim();
+  const carga = document.getElementById("carga").value.trim();
+  if (!nome || !carga) { alert("Preencha seu nome e o ID da carga nos campos acima"); return; }
+  const btn = document.getElementById("btn-retomar");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/motoristas/retomar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome, carga }),
+    });
+    if (res.status === 404) { alert("Nao encontramos uma entrada ativa com esse nome e ID da carga. Confira os dados ou entre na fila."); return; }
+    if (!res.ok) throw new Error("status " + res.status);
+    const data = await res.json();
+    motoristaId = data.id;
+    motoristaToken = data.token;
+    localStorage.setItem("motoristaId", motoristaId);
+    localStorage.setItem("motoristaToken", motoristaToken);
+    ativarNotificacoes();
+    iniciarEspera();
+  } catch (e) {
+    alert("Nao foi possivel voltar a espera. Verifique sua conexao e tente novamente.");
+  } finally {
+    btn.disabled = false;
   }
 }
 

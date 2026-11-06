@@ -290,6 +290,8 @@ def init_db():
             conn.execute("ALTER TABLE motoristas ADD COLUMN fornecedor TEXT")
         if "veiculo" not in colunas:
             conn.execute("ALTER TABLE motoristas ADD COLUMN veiculo TEXT")
+        if "celular" not in colunas:
+            conn.execute("ALTER TABLE motoristas ADD COLUMN celular TEXT")
         for antiga, nova in DOCAS_RENOMEADAS.items():
             conn.execute("UPDATE motoristas SET doca = %s WHERE doca = %s", (nova, antiga))
         if "finalizado_em" not in colunas:
@@ -326,6 +328,7 @@ class NovoMotorista(BaseModel):
     tipo: str = Field(max_length=20)
     nf: str | None = Field(default=None, max_length=120)
     veiculo: str | None = Field(default=None, max_length=40)
+    celular: str | None = Field(default=None, max_length=30)
 
 
 class ChamarPayload(BaseModel):
@@ -556,6 +559,24 @@ def limpar(row):
     return row
 
 
+def _publico(row, perfil):
+    limpar(row)
+    if perfil not in PERFIS_CHAMAM:
+        row.pop("celular", None)
+    return row
+
+
+def normalizar_celular(valor: str | None) -> str | None:
+    digitos = "".join(c for c in (valor or "") if c.isdigit())
+    if not digitos:
+        return None
+    if len(digitos) in (10, 11):
+        digitos = "55" + digitos
+    if not (12 <= len(digitos) <= 13) or not digitos.startswith("55"):
+        raise HTTPException(400, "Celular invalido. Informe com DDD, por exemplo (11) 91234-5678")
+    return digitos
+
+
 def normalizar_motorista(payload: NovoMotorista):
     nome = " ".join(payload.nome.split())
     carga = payload.carga.strip().upper()
@@ -576,11 +597,14 @@ def criar_motorista(payload: NovoMotorista, background: BackgroundTasks, _sig: N
     nome, carga, fornecedor, tipo, veiculo = normalizar_motorista(payload)
     if not veiculo:
         raise HTTPException(400, "Informe o tipo de veiculo")
+    celular = normalizar_celular(payload.celular)
+    if not celular:
+        raise HTTPException(400, "Informe o celular com DDD")
     token = secrets.token_urlsafe(16)
     with get_db() as conn:
         row = conn.execute(
-            "INSERT INTO motoristas (nome, carga, fornecedor, tipo, veiculo, status, criado_em, token) VALUES (%s, %s, %s, %s, %s, 'aguardando', %s, %s) RETURNING id",
-            (nome, carga, fornecedor, tipo, veiculo, datetime.now(timezone.utc), token),
+            "INSERT INTO motoristas (nome, carga, fornecedor, tipo, veiculo, celular, status, criado_em, token) VALUES (%s, %s, %s, %s, %s, %s, 'aguardando', %s, %s) RETURNING id",
+            (nome, carga, fornecedor, tipo, veiculo, celular, datetime.now(timezone.utc), token),
         ).fetchone()
     rotulo = "Coleta" if tipo == "COLETA" else "Descarga"
     background.add_task(notificar_operadores, "Novo motorista na fila", f"{nome} - carga {carga} - {fornecedor} ({rotulo}, {veiculo})")
@@ -612,7 +636,7 @@ def listar_motoristas(request: Request, _: None = Depends(exigir_login_api)):
             "AND (%s::text IS NULL OR tipo = %s) ORDER BY criado_em ASC",
             (tipo, tipo),
         ).fetchall()
-        return [limpar(r) for r in rows]
+        return [_publico(r, request.state.perfil) for r in rows]
 
 
 @app.get("/api/motoristas/historico")
@@ -625,7 +649,7 @@ def historico_motoristas(request: Request, _: None = Depends(exigir_login_api)):
             "AND (%s::text IS NULL OR tipo = %s) ORDER BY criado_em DESC LIMIT 200",
             (tipo, tipo),
         ).fetchall()
-        return [limpar(r) for r in rows]
+        return [_publico(r, request.state.perfil) for r in rows]
 
 
 class MetaPayload(BaseModel):
@@ -856,10 +880,11 @@ def finalizar_motorista(motorista_id: int, _: None = Depends(exigir_edicao), _si
 def editar_motorista(motorista_id: int, payload: NovoMotorista, _: None = Depends(exigir_edicao), _sig: None = Depends(sinalizar)):
     nome, carga, fornecedor, tipo, veiculo = normalizar_motorista(payload)
     nf = normalizar_nf(payload.nf) or None
+    celular = normalizar_celular(payload.celular)
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s, tipo = %s, nf = %s, veiculo = %s WHERE id = %s AND removido_em IS NULL",
-            (nome, carga, fornecedor, tipo, nf, veiculo, motorista_id),
+            "UPDATE motoristas SET nome = %s, carga = %s, fornecedor = %s, tipo = %s, nf = %s, veiculo = %s, celular = %s WHERE id = %s AND removido_em IS NULL",
+            (nome, carga, fornecedor, tipo, nf, veiculo, celular, motorista_id),
         )
         if cur.rowcount == 0:
             raise HTTPException(404, "Motorista nao encontrado")

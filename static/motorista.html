@@ -78,7 +78,7 @@
     text-align: center;
   }
   h1 { font-size: 18px; margin: 0 0 18px; color: var(--navy-dark); }
-  input[type=text] {
+  input[type=text], input[type=tel] {
     width: 100%; box-sizing: border-box; padding: 13px 14px; margin-bottom: 12px;
     border: 1.5px solid #dde1ea; border-radius: 10px; font-size: 15px;
     transition: border-color .15s ease;
@@ -89,6 +89,7 @@
   }
   select#veiculo.escolhido { color: inherit; }
   select#veiculo:focus { outline: none; border-color: var(--navy-light); }
+  input[type=tel]:focus,
   input[type=text]:focus {
     outline: none; border-color: var(--navy-light);
   }
@@ -139,6 +140,8 @@
   }
   .aviso-ios .fechar-aviso:hover { background: rgba(122,82,0,.18); }
 
+  .dica-campo { font-size: 11px; color: #6b7280; margin: -6px 0 12px; text-align: left; }
+  .aviso-notif button { width: auto; padding: 8px 14px; margin-top: 8px; font-size: 13px; }
   .wrap { margin: auto; padding: 16px 0; }
   @media (max-width: 480px) {
     .wrap { max-width: none; width: calc(100% - 32px); padding: 20px 0; }
@@ -147,7 +150,7 @@
     .logo-box img { width: 140px; }
     .card { padding: 22px 18px; border-radius: 16px; }
     h1 { font-size: 17px; }
-    input[type=text], select#veiculo, button { font-size: 16px; }
+    input[type=text], input[type=tel], select#veiculo, button { font-size: 16px; }
     .doca-numero { font-size: 56px; }
     .doca-numero.longo { font-size: 40px; }
   }
@@ -169,6 +172,7 @@
     Toque no botao de compartilhar do Safari (o quadrado com a seta para cima), escolha
     <strong>"Adicionar a Tela de Inicio"</strong> e abra o app por esse icone.
   </div>
+  <div class="aviso-ios aviso-notif hidden" id="aviso-notif"></div>
   <div class="card" id="card">
 
   <div id="form-entrada">
@@ -176,6 +180,8 @@
     <input type="text" id="nome" placeholder="Seu nome" />
     <input type="text" id="carga" placeholder="ID da carga" />
     <input type="text" id="fornecedor" placeholder="Fornecedor" autocomplete="organization" />
+    <input type="tel" id="celular" placeholder="Celular com DDD (WhatsApp)" inputmode="tel" autocomplete="tel" />
+    <div class="dica-campo">Usado so para avisar sobre a sua vez na doca.</div>
     <select id="veiculo" aria-label="Tipo de veiculo"><option value="">Tipo de veiculo</option><option value="Carro / Fiorino">Carro / Fiorino</option><option value="Van">Van</option><option value="VUC">VUC</option><option value="Toco">Toco</option><option value="Truck">Truck</option><option value="Carreta">Carreta</option><option value="Bitrem">Bitrem</option><option value="Outro">Outro</option></select>
     <div class="tipo-rotulo">Tipo da operacao</div>
     <div class="tipo-grupo" id="tipo-grupo" role="radiogroup" aria-label="Tipo da operacao">
@@ -231,6 +237,8 @@ async function entrarNaFila() {
   const carga = document.getElementById("carga").value.trim();
   const fornecedor = document.getElementById("fornecedor").value.trim();
   const veiculo = document.getElementById("veiculo").value;
+  const celular = document.getElementById("celular").value.trim();
+  if (celular.replace(/\D/g, "").length < 10) { alert("Informe o celular com DDD"); return; }
   if (!nome || !carga || !fornecedor) { alert("Preencha nome, ID da carga e fornecedor"); return; }
   if (!veiculo) { alert("Escolha o tipo de veiculo"); return; }
   if (!tipoEscolhido) { alert("Escolha se e Coleta ou Descarga"); return; }
@@ -244,7 +252,7 @@ async function entrarNaFila() {
     const res = await fetch("/api/motoristas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, carga, fornecedor, tipo: tipoEscolhido, veiculo }),
+      body: JSON.stringify({ nome, carga, fornecedor, tipo: tipoEscolhido, veiculo, celular }),
     });
     if (!res.ok) throw new Error("status " + res.status);
     const data = await res.json();
@@ -330,7 +338,43 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
+function estadoNotificacoes() {
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const instalado = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone;
+  if (ios && !instalado) return "ios";
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || typeof Notification === "undefined") return "nao";
+  return Notification.permission;
+}
+
+function atualizarAvisoNotificacoes() {
+  const box = document.getElementById("aviso-notif");
+  const estado = estadoNotificacoes();
+  box.replaceChildren();
+  if (estado === "granted" || estado === "ios") { box.classList.add("hidden"); return; }
+  const t = document.createElement("strong");
+  const p = document.createElement("span");
+  if (estado === "default") {
+    t.textContent = "Ative as notificacoes para ser avisado";
+    p.textContent = "Assim voce recebe o aviso mesmo com a tela apagada.";
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "Ativar notificacoes";
+    b.onclick = async () => { await ativarNotificacoes(); atualizarAvisoNotificacoes(); };
+    box.append(t, p, document.createElement("br"), b);
+  } else if (estado === "denied") {
+    t.textContent = "As notificacoes estao bloqueadas";
+    p.textContent = "Toque no cadeado ao lado do endereco do site, abra Permissoes e permita Notificacoes. Enquanto isso, deixe esta tela aberta e com o som ligado.";
+    box.append(t, p);
+  } else {
+    t.textContent = "Este aparelho nao recebe notificacoes";
+    p.textContent = "Deixe esta tela aberta e com o som ligado para ver quando for chamado. Voce tambem pode receber o aviso pelo WhatsApp.";
+    box.append(t, p);
+  }
+  box.classList.remove("hidden");
+}
+
 function iniciarEspera() {
+  atualizarAvisoNotificacoes();
   mostrarTela("tela-espera");
   verificarStatus();
   polling = setInterval(verificarStatus, 4000);
@@ -544,6 +588,7 @@ function resetarParaNovaEntrada() {
   document.getElementById("carga").value = "";
   document.getElementById("fornecedor").value = "";
   document.getElementById("veiculo").value = "";
+  document.getElementById("celular").value = "";
   document.getElementById("veiculo").classList.remove("escolhido");
   tipoEscolhido = null;
   document.querySelectorAll(".tipo-btn").forEach((b) => b.classList.remove("ativo"));

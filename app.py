@@ -35,7 +35,7 @@ import qrcode
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from pywebpush import WebPushException, webpush
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import indicadores
@@ -1000,6 +1000,64 @@ def remover_usuario(usuario_id: int, request: Request, _: None = Depends(exigir_
             raise HTTPException(400, "Voce nao pode remover o proprio usuario")
         conn.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
     return {"ok": True}
+
+
+BACKUP_TABELAS = ("usuarios", "motoristas", "configuracoes")
+
+
+@app.get("/api/backup")
+def baixar_backup(_: None = Depends(exigir_admin)):
+    with get_db() as conn:
+        tabelas = {t: conn.execute(f"SELECT * FROM {t}").fetchall() for t in BACKUP_TABELAS}
+    agora = datetime.now(timezone.utc)
+    corpo = json.dumps(
+        {"versao": 1, "gerado_em": agora.isoformat(), "tabelas": tabelas}, default=str, ensure_ascii=False
+    )
+    nome = f"backup_doca_{agora:%Y%m%d_%H%M}.json"
+    return Response(
+        corpo.encode("utf-8"),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"', "Cache-Control": "no-store"},
+    )
+
+
+@app.post("/api/restaurar")
+def restaurar_backup(dados: dict = Body(...), _: None = Depends(exigir_admin)):
+    tabelas = dados.get("tabelas")
+    if dados.get("versao") != 1 or not isinstance(tabelas, dict):
+        raise HTTPException(400, "Arquivo de backup invalido")
+    resumo = {}
+    with get_db() as conn:
+        for t in BACKUP_TABELAS:
+            linhas = tabelas.get(t) or []
+            validas = {
+                c["column_name"]
+                for c in conn.execute(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = %s", (t,)
+                ).fetchall()
+            }
+            inseridas = 0
+            for linha in linhas:
+                if not isinstance(linha, dict):
+                    continue
+                colunas = [c for c in linha if c in validas and not (t == "usuarios" and c == "id")]
+                if not colunas:
+                    continue
+                destino = {"usuarios": "(usuario)", "configuracoes": "(chave)", "motoristas": "(id)"}[t]
+                if t == "configuracoes":
+                    acao = "DO UPDATE SET valor = EXCLUDED.valor"
+                else:
+                    acao = "DO NOTHING"
+                cur = conn.execute(
+                    f"INSERT INTO {t} ({', '.join(colunas)}) VALUES ({', '.join(['%s'] * len(colunas))}) "
+                    f"ON CONFLICT {destino} {acao}",
+                    [linha[c] for c in colunas],
+                )
+                inseridas += cur.rowcount
+            resumo[t] = {"no_arquivo": len(linhas), "inseridas": inseridas}
+        for t in ("usuarios", "motoristas"):
+            conn.execute(f"SELECT setval(pg_get_serial_sequence('{t}', 'id'), COALESCE((SELECT MAX(id) FROM {t}), 1))")
+    return {"ok": True, "resumo": resumo}
 
 
 @app.get("/usuarios")

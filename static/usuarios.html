@@ -248,6 +248,17 @@
     <div class="msg" id="msg-lista"></div>
   </div>
   <div class="card">
+    <h2>Backup do banco de dados</h2>
+    <p class="perfis-ajuda">Baixe uma copia dos usuarios, motoristas e configuracoes e guarde em um lugar seguro. Serve para trocar de banco ou de plano sem perder o historico.</p>
+    <div class="form-novo" style="margin-top:12px">
+      <a class="bt" href="/api/backup" download>Baixar backup</a>
+      <label class="bt sec" style="cursor:pointer">Restaurar de um arquivo
+        <input type="file" id="arq-backup" accept="application/json,.json" style="display:none" />
+      </label>
+    </div>
+    <div class="msg" id="msg-backup"></div>
+  </div>
+  <div class="card">
     <h2>O que cada perfil pode</h2>
     <p class="perfis-ajuda">
       <b>Admin</b>: tudo, inclusive remover registros e gerenciar usuarios e perfis.<br />
@@ -355,6 +366,23 @@ document.getElementById("n-criar").onclick = async () => {
   } else if (r.status === 422) msg("msg-novo", "Usuario precisa de 3+ caracteres e a senha de 6+.");
   else msg("msg-novo", await erroDe(r));
 };
+
+document.getElementById("arq-backup").addEventListener("change", async (e) => {
+  const arq = e.target.files[0];
+  e.target.value = "";
+  if (!arq) return;
+  if (!confirm("Restaurar os dados do arquivo " + arq.name + "?\n\nMotoristas e usuarios que ainda nao existem serao adicionados. Nada existente e apagado.")) return;
+  try {
+    const dados = JSON.parse(await arq.text());
+    const r = await api("/api/restaurar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
+    if (!r.ok) { msg("msg-backup", await erroDe(r)); return; }
+    const res = (await r.json()).resumo;
+    msg("msg-backup", `Restaurado: ${res.usuarios.inseridas} usuario(s), ${res.motoristas.inseridas} motorista(s) adicionados.`, true);
+    carregar();
+  } catch (err) {
+    msg("msg-backup", "Nao foi possivel ler esse arquivo.");
+  }
+});
 
 async function sair() {
   await fetch("/api/logout", { method: "POST" });

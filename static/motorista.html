@@ -180,8 +180,6 @@
     <input type="text" id="nome" placeholder="Seu nome" />
     <input type="text" id="carga" placeholder="ID da carga" />
     <input type="text" id="fornecedor" placeholder="Fornecedor" autocomplete="organization" />
-    <input type="tel" id="celular" placeholder="Celular com DDD (WhatsApp)" inputmode="tel" autocomplete="tel" />
-    <div class="dica-campo">Usado so para avisar sobre a sua vez na doca.</div>
     <select id="veiculo" aria-label="Tipo de veiculo"><option value="">Tipo de veiculo</option><option value="Carro / Fiorino">Carro / Fiorino</option><option value="Van">Van</option><option value="VUC">VUC</option><option value="Toco">Toco</option><option value="Truck">Truck</option><option value="Carreta">Carreta</option><option value="Bitrem">Bitrem</option><option value="Outro">Outro</option></select>
     <div class="tipo-rotulo">Tipo da operacao</div>
     <div class="tipo-grupo" id="tipo-grupo" role="radiogroup" aria-label="Tipo da operacao">
@@ -237,8 +235,6 @@ async function entrarNaFila() {
   const carga = document.getElementById("carga").value.trim();
   const fornecedor = document.getElementById("fornecedor").value.trim();
   const veiculo = document.getElementById("veiculo").value;
-  const celular = document.getElementById("celular").value.trim();
-  if (celular.replace(/\D/g, "").length < 10) { alert("Informe o celular com DDD"); return; }
   if (!nome || !carga || !fornecedor) { alert("Preencha nome, ID da carga e fornecedor"); return; }
   if (!veiculo) { alert("Escolha o tipo de veiculo"); return; }
   if (!tipoEscolhido) { alert("Escolha se e Coleta ou Descarga"); return; }
@@ -252,7 +248,7 @@ async function entrarNaFila() {
     const res = await fetch("/api/motoristas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, carga, fornecedor, tipo: tipoEscolhido, veiculo, celular }),
+      body: JSON.stringify({ nome, carga, fornecedor, tipo: tipoEscolhido, veiculo }),
     });
     if (!res.ok) throw new Error("status " + res.status);
     const data = await res.json();
@@ -367,7 +363,7 @@ function atualizarAvisoNotificacoes() {
     box.append(t, p);
   } else {
     t.textContent = "Este aparelho nao recebe notificacoes";
-    p.textContent = "Deixe esta tela aberta e com o som ligado para ver quando for chamado. Voce tambem pode receber o aviso pelo WhatsApp.";
+    p.textContent = "Deixe esta tela aberta e com o som ligado para ver quando for chamado.";
     box.append(t, p);
   }
   box.classList.remove("hidden");
@@ -588,7 +584,6 @@ function resetarParaNovaEntrada() {
   document.getElementById("carga").value = "";
   document.getElementById("fornecedor").value = "";
   document.getElementById("veiculo").value = "";
-  document.getElementById("celular").value = "";
   document.getElementById("veiculo").classList.remove("escolhido");
   tipoEscolhido = null;
   document.querySelectorAll(".tipo-btn").forEach((b) => b.classList.remove("ativo"));

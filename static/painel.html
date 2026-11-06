@@ -70,8 +70,6 @@
   .panel-title:first-of-type { margin-top: 0; }
   .espera { font-variant-numeric: tabular-nums; color: #33405e; font-weight: 600; }
   tr.linha-historico td { color: #6b7488; }
-  .btn-wpp { background: #25d366; border-color: #25d366; color: #052e16; font-weight: 600; }
-  .btn-wpp:hover { background: #1fb858; }
   .filtros-hist { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
   .filtros-hist input, .filtros-hist select { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; background: #fff; }
   .filtros-hist input[type=search] { flex: 1 1 260px; min-width: 200px; }
@@ -267,7 +265,6 @@
   <label>Nome<input type="text" id="ed-nome" maxlength="100" /></label>
   <label>ID da carga<input type="text" id="ed-carga" maxlength="50" /></label>
   <label>Fornecedor<input type="text" id="ed-fornecedor" maxlength="100" /></label>
-  <label>Celular (WhatsApp)<input type="tel" id="ed-celular" maxlength="30" placeholder="(11) 91234-5678" /></label>
   <label>Tipo de veiculo
     <select id="ed-veiculo"><option value="">Selecione...</option><option value="Carro / Fiorino">Carro / Fiorino</option><option value="Van">Van</option><option value="VUC">VUC</option><option value="Toco">Toco</option><option value="Truck">Truck</option><option value="Carreta">Carreta</option><option value="Bitrem">Bitrem</option><option value="Outro">Outro</option></select>
   </label>
@@ -728,20 +725,17 @@ async function carregar() {
       btnAv.title = "Registrar a etapa do motorista";
       btnAv.onclick = () => avancar(m, proximo, btnAv);
     }
-    const btnZap = PERM.chamar ? botaoWhatsapp(m) : null;
     if (PERM.editar) {
       if (btnAv) wrap.appendChild(btnAv);
-      if (btnZap) wrap.appendChild(btnZap);
       wrap.appendChild(botoesSecundarios(m));
       tdAcao.appendChild(wrap);
-    } else if (btnAv || btnZap || (PERM.chamar && m.status === "aguardando")) {
+    } else if (btnAv || (PERM.chamar && m.status === "aguardando")) {
       const soAvancar = document.createElement("div");
       soAvancar.className = "row-actions";
       if (PERM.chamar && m.status === "aguardando") {
         soAvancar.append(wrap.children[0], wrap.children[1]);
       }
       if (btnAv) soAvancar.appendChild(btnAv);
-      if (btnZap) soAvancar.appendChild(btnZap);
       tdAcao.appendChild(soAvancar);
     }
     tr.append(tdChegada, tdNome, tdCarga, tdFornecedor, tdVeiculo, tdTipo, tdStatus, tdDoca, tdEspera, tdAcao);
@@ -854,7 +848,6 @@ function abrirEdicao(m) {
   document.getElementById("ed-fornecedor").value = m.fornecedor || "";
   document.getElementById("ed-tipo").value = m.tipo || "";
   document.getElementById("ed-veiculo").value = m.veiculo || "";
-  document.getElementById("ed-celular").value = m.celular || "";
   document.getElementById("ed-nf").value = m.nf || "";
   document.getElementById("ed-erro").textContent = "";
   document.getElementById("dlg-editar").showModal();
@@ -872,7 +865,6 @@ async function salvarEdicao() {
   const tipo = document.getElementById("ed-tipo").value;
   const nf = document.getElementById("ed-nf").value.trim();
   const veiculo = document.getElementById("ed-veiculo").value;
-  const celular = document.getElementById("ed-celular").value.trim();
   const erro = document.getElementById("ed-erro");
   if (!nome || !carga || !fornecedor || !tipo) { erro.textContent = "Preencha todos os campos."; return; }
   const btn = document.getElementById("ed-salvar");
@@ -881,7 +873,7 @@ async function salvarEdicao() {
     const res = await apiFetch(`/api/motoristas/${editandoId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, carga, fornecedor, tipo, nf, veiculo, celular }),
+      body: JSON.stringify({ nome, carga, fornecedor, tipo, nf, veiculo }),
     });
     if (!res.ok) { erro.textContent = "Nao foi possivel salvar. Tente novamente."; return; }
     fecharEdicao();
@@ -938,28 +930,6 @@ async function liberarNF(id, input, btn) {
   delete nfDigitada[id];
   carregar();
   carregarHistorico();
-}
-
-function mensagemWhatsapp(m) {
-  const nome = (m.nome || "").split(" ")[0];
-  const oi = `DSV - Ola, ${nome}! `;
-  if (m.status === "aguardando" && m.nf_entrega === "chamado") return oi + "Leve a NF ao administrativo.";
-  if (m.status === "aguardando") return oi + "Voce esta na fila da doca. Aguarde ser chamado.";
-  if (m.status === "chamado") return oi + `Va para ${m.doca || "a doca"} agora.`;
-  if (m.status === "na_doca") return oi + `Voce esta em ${m.doca || "a doca"}. Avise ao terminar e sair da doca.`;
-  if (m.status === "aguardando_nf") return oi + "Estamos preparando a sua NF. Avisaremos quando puder retirar.";
-  if (m.status === "nf_liberada") return oi + "Sua NF esta liberada. Pode retirar.";
-  return oi + "Atualizacao do seu atendimento.";
-}
-
-function botaoWhatsapp(m) {
-  if (!m.celular || m.status === "saindo" || m.status === "finalizado") return null;
-  const b = document.createElement("button");
-  b.className = "btn-sec btn-wpp";
-  b.textContent = "WhatsApp";
-  b.title = "Abrir o WhatsApp com a mensagem pronta";
-  b.onclick = () => window.open(`https://wa.me/${m.celular}?text=${encodeURIComponent(mensagemWhatsapp(m))}`, "_blank", "noopener");
-  return b;
 }
 
 function proximaEtapa(m) {

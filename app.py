@@ -627,6 +627,8 @@ def criar_motorista(payload: NovoMotorista, background: BackgroundTasks, _sig: N
     if not veiculo:
         raise HTTPException(400, "Informe o tipo de veiculo")
     celular = normalizar_celular(payload.celular)
+    if not celular:
+        raise HTTPException(400, "Informe o celular com DDD")
     token = secrets.token_urlsafe(16)
     with get_db() as conn:
         existente = _entrada_ativa(conn, nome, carga)

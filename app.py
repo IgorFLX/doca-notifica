@@ -665,7 +665,7 @@ def listar_motoristas(request: Request, _: None = Depends(exigir_login_api)):
         indicadores.auto_finalizar(conn)
         rows = conn.execute(
             "SELECT * FROM motoristas WHERE status != 'finalizado' AND removido_em IS NULL "
-            "AND (%s::text IS NULL OR tipo = %s) ORDER BY criado_em ASC",
+            "AND (%s::text IS NULL OR tipo = %s) ORDER BY criado_em DESC",
             (tipo, tipo),
         ).fetchall()
         return [_publico(r, request.state.perfil) for r in rows]
